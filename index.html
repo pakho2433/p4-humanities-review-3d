@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0b1424">
 <title>奇妙考察隊 · 四上人文課1–4</title>
 <link rel="stylesheet" href="css/style.css">
 </head>
@@ -12,6 +13,8 @@
   <div id="missionPill" class="pill" data-testid="mission-pill">🗺️ 準備出發</div>
   <div id="stats" class="pill right" data-testid="stats">⭐ 0 · ⏱ --</div>
   <div id="progress" data-testid="progress"></div>
+  <div id="hint" data-testid="hint"></div>
+  <div id="held" data-testid="held"></div>
   <div id="prompt" data-testid="prompt"></div>
   <div id="cross"></div>
   <button id="act" data-testid="act" aria-label="行動">✋</button>
@@ -20,20 +23,40 @@
   <div id="boardHost" data-testid="board-host"></div>
 </div>
 
-<div id="title" class="ov" data-testid="title">
-  <div class="icons">🗺️ ⛰️ 🌦️ 🌍</div>
-  <h1>奇妙考察隊</h1>
-  <p class="sub">四上人文 · 課1–4 溫習任務</p>
-  <p class="howto">🕹️ 左邊搖桿／WASD 移動 · 右邊拖／滑鼠望 · ✋／E 互動<br>完成 12 個任務 · 約 30–45 分鐘</p>
-  <button class="btn" id="go" data-testid="start">▶ 開始考察</button>
+<div id="title" class="ov title" data-testid="title">
+  <div class="card">
+    <div class="badge">四上人文 · 課 1–4</div>
+    <h1>奇妙考察隊</h1>
+    <div class="lessons">
+      <span style="--c:#2f80ed">🗺️ 小小考察隊</span>
+      <span style="--c:#27ae60">⛰️ 漫遊香港</span>
+      <span style="--c:#f2994a">🌦️ 香港的氣候</span>
+      <span style="--c:#9b51e0">🌍 發現地球</span>
+    </div>
+    <div class="howto">
+      <div><b>🕹️</b><span>移動</span></div>
+      <div><b>👆</b><span>望</span></div>
+      <div><b>✋</b><span>互動</span></div>
+      <div><b>🏅</b><span>12 任務</span></div>
+    </div>
+    <button class="btn loading" id="go" data-testid="start" disabled>▶ 開始考察</button>
+  </div>
 </div>
 
 <div id="end" class="ov hide" data-testid="end">
-  <h1>🎉 考察完成！</h1>
-  <div id="endStars" class="stars"></div>
-  <div id="endScore" class="sub"></div>
-  <p class="sum">你覆習了：小小考察隊 · 漫遊香港 · 香港的氣候 · 發現地球</p>
-  <button class="btn" id="replay">🔁 再玩</button>
+  <div class="card">
+    <div class="badge">考察完成</div>
+    <div id="endStars" class="stars"></div>
+    <div id="endScore" class="score"></div>
+    <div id="endDone" class="sub"></div>
+    <div class="lessons">
+      <span style="--c:#2f80ed">🗺️ 小小考察隊</span>
+      <span style="--c:#27ae60">⛰️ 漫遊香港</span>
+      <span style="--c:#f2994a">🌦️ 香港的氣候</span>
+      <span style="--c:#9b51e0">🌍 發現地球</span>
+    </div>
+    <button class="btn" id="replay">🔁 再玩</button>
+  </div>
 </div>
 
 <script type="importmap">
