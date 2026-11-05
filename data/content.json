@@ -1,0 +1,244 @@
+{
+  "title": "奇妙考察隊",
+  "subtitle": "四上人文 · 課1–4 溫習任務",
+  "book": "EPH《奇妙的世界》四上",
+  "lessons": [
+    {
+      "id": "L1",
+      "name": "小小考察隊",
+      "pages": "課本 p.4–11 · 作業 p.2–3",
+      "color": "#2f80ed"
+    },
+    {
+      "id": "L2",
+      "name": "漫遊香港",
+      "pages": "課本 p.12–16 · 作業 p.4–5",
+      "color": "#27ae60"
+    },
+    {
+      "id": "L3",
+      "name": "香港的氣候",
+      "pages": "課本 p.17–22 · 作業 p.6–7",
+      "color": "#f2994a"
+    },
+    {
+      "id": "L4",
+      "name": "發現地球",
+      "pages": "課本 p.26–34 · 作業 p.8–9",
+      "color": "#9b51e0"
+    }
+  ],
+  "facts": {
+    "hkRegions": ["新界", "九龍", "香港島"],
+    "mapTypes": {
+      "A": "世界地圖",
+      "B": "亞洲地圖",
+      "C": "香港全境圖",
+      "D": "香港街道圖"
+    },
+    "mapMatch": [
+      { "need": "七個大洲的分佈", "answer": "A" },
+      { "need": "家附近街市位置", "answer": "D" },
+      { "need": "中國在亞洲的位置", "answer": "B" }
+    ],
+    "trueFalse": [
+      { "text": "地圖一般都有標題、比例尺和方向標。", "ok": true },
+      { "text": "我們可以從香港街道圖知道香港主要分多少個區域。", "ok": false, "fix": "全境圖" },
+      { "text": "格網座標顯示地圖上的符號所代表的事物。", "ok": false, "fix": "圖例" },
+      { "text": "使用電子地圖可以快速地搜尋目的地的位置。", "ok": true }
+    ],
+    "sheungWan": [
+      { "facility": "街市", "letter": "E", "grid": "B2" },
+      { "facility": "博物館", "letter": "H", "grid": "B1" },
+      { "facility": "餐廳", "letter": "D", "grid": "C2" },
+      { "facility": "法定古蹟", "letter": "A", "grid": "C3" },
+      { "facility": "醫院", "letter": "C", "grid": "A2" }
+    ],
+    "walkDirections": { "from": "西港城", "to": "上環文娛中心", "steps": ["南", "西"] },
+    "terrain": {
+      "mountains": "多",
+      "flats": "較少",
+      "flatSpread": "較分散",
+      "flatAreas": ["新界北部", "新界西北部", "九龍"],
+      "peaks": [
+        { "name": "大帽山", "m": 957 },
+        { "name": "鳳凰山", "m": 934 },
+        { "name": "飛鵝山", "m": 602 },
+        { "name": "獅子山", "m": 495 }
+      ]
+    },
+    "airport": {
+      "overcome": ["C", "D"],
+      "impacts": ["B", "C", "D"],
+      "balance": ["A", "B", "D"],
+      "marinePark": "沙洲及龍鼓洲海岸公園",
+      "dolphin": "中華白海豚",
+      "timeline": [
+        { "y": "1970–80年代", "t": "啟德機場不敷應用" },
+        { "y": "1998年", "t": "赤鱲角新機場啟用" },
+        { "y": "2007年", "t": "啟德發展計劃" },
+        { "y": "2016年", "t": "三跑道系統動工" },
+        { "y": "2024年", "t": "三跑道系統落成" }
+      ]
+    },
+    "stakeholders": [
+      { "say": "發展城市時要避免破壞自然環境，影響動植物的棲息地。", "who": "C", "label": "環保人士" },
+      { "say": "期望增加土地供應興建公屋。", "who": "A", "label": "輪候公屋的居民" },
+      { "say": "創新科技產業土地不足。", "who": "B", "label": "商界代表" }
+    ],
+    "northernFill": ["土地", "大量住宅", "創新科技產業", "環境保護", "濕地", "動植物"],
+    "seasons": [
+      { "id": "春", "trait": "潮濕", "item": "A", "itemName": "抽濕機" },
+      { "id": "夏", "trait": "酷熱", "item": "B", "itemName": "手提風扇" },
+      { "id": "秋", "trait": "乾燥", "item": "D", "itemName": "護手霜" },
+      { "id": "冬", "trait": "寒冷", "item": "C", "itemName": "暖水袋" }
+    ],
+    "typhoon8": { "do": ["關好窗戶", "在玻璃窗貼上膠紙"], "dont": ["把盆栽移到室外"] },
+    "landslip": { "do": ["遠離斜坡", "到安全地方暫避"], "dont": ["靠近斜坡觀察"] },
+    "elderlyCold": {
+      "whyFall": ["血壓變高，容易頭暈", "肌肉和關節較繃緊"],
+      "help": ["送上禦寒衣物", "送上食物和熱飲", "探訪長者"]
+    },
+    "earth": {
+      "oceanVsLand": "多",
+      "continents": 7,
+      "oceans": 4,
+      "largestContinent": "亞洲",
+      "smallestContinent": "大洋洲",
+      "largestOcean": "太平洋",
+      "smallestOcean": "北冰洋",
+      "hkContinent": "亞洲",
+      "hkOcean": "太平洋",
+      "puzzleOptions": {
+        "A": "非洲",
+        "B": "太平洋",
+        "C": "亞洲",
+        "D": "印度洋",
+        "E": "南美洲"
+      },
+      "puzzleAnswers": ["C", "A", "B", "E", "D"],
+      "puzzleSlots": ["亞洲", "非洲", "太平洋", "南美洲", "印度洋"]
+    },
+    "environments": [
+      { "id": "草原", "climate": "地勢平坦空曠，有明顯旱季和雨季", "code": "C" },
+      { "id": "熱帶雨林", "climate": "炎熱多雨，陽光充足", "code": "B", "house": ["竹子", "木樁"] },
+      { "id": "沙漠", "climate": "日夜溫差大，乾燥少雨", "code": "A", "wear": "長袍", "transport": "駱駝" },
+      { "id": "極地", "climate": "氣候嚴寒，終年結冰", "code": "D", "wear": "保暖", "food": "捕魚" }
+    ],
+    "disaster": {
+      "volcano": ["山坡崩塌", "房屋被埋"],
+      "reduce": ["加強建築物的防風抗震能力", "設立地震預警系統"],
+      "quakeEscape": "不要使用升降機，並儘快逃到空曠的地方"
+    }
+  },
+  "missions": [
+    {
+      "id": "m1",
+      "lesson": "L1",
+      "icon": "🗺️",
+      "name": "地圖配對",
+      "hint": "把正確地圖放到需要的位置",
+      "seconds": 120,
+      "points": 100
+    },
+    {
+      "id": "m2",
+      "lesson": "L1",
+      "icon": "🧭",
+      "name": "格網尋寶",
+      "hint": "走到正確格網座標拾取設施",
+      "seconds": 150,
+      "points": 120
+    },
+    {
+      "id": "m3",
+      "lesson": "L1",
+      "icon": "✏️",
+      "name": "考察路線",
+      "hint": "擺放圖例、方向標並完成路線",
+      "seconds": 120,
+      "points": 100
+    },
+    {
+      "id": "m4",
+      "lesson": "L2",
+      "icon": "⛰️",
+      "name": "地勢特徵",
+      "hint": "選擇香港地勢正確描述",
+      "seconds": 100,
+      "points": 100
+    },
+    {
+      "id": "m5",
+      "lesson": "L2",
+      "icon": "✈️",
+      "name": "機場與海豚",
+      "hint": "時間線排序，並保護中華白海豚",
+      "seconds": 160,
+      "points": 130
+    },
+    {
+      "id": "m6",
+      "lesson": "L2",
+      "icon": "🏙️",
+      "name": "北部都會區",
+      "hint": "配對持份者意見並完成填充",
+      "seconds": 130,
+      "points": 110
+    },
+    {
+      "id": "m7",
+      "lesson": "L3",
+      "icon": "🌦️",
+      "name": "四季急救箱",
+      "hint": "為每個季節拿正確物品",
+      "seconds": 140,
+      "points": 120
+    },
+    {
+      "id": "m8",
+      "lesson": "L3",
+      "icon": "🌀",
+      "name": "八號防風",
+      "hint": "關窗、貼膠紙，別把盆栽移出室外",
+      "seconds": 120,
+      "points": 120
+    },
+    {
+      "id": "m9",
+      "lesson": "L3",
+      "icon": "🧣",
+      "name": "送暖給長者",
+      "hint": "把禦寒物品送到長者身邊",
+      "seconds": 110,
+      "points": 100
+    },
+    {
+      "id": "m10",
+      "lesson": "L4",
+      "icon": "🌍",
+      "name": "七大洲拼圖",
+      "hint": "把缺塊放到正確位置",
+      "seconds": 150,
+      "points": 140
+    },
+    {
+      "id": "m11",
+      "lesson": "L4",
+      "icon": "🏜️",
+      "name": "衣食住行",
+      "hint": "為沙漠與極地配對正確生活方式",
+      "seconds": 140,
+      "points": 130
+    },
+    {
+      "id": "m12",
+      "lesson": "L4",
+      "icon": "🚨",
+      "name": "防災演習",
+      "hint": "避難、選正確防災措施",
+      "seconds": 130,
+      "points": 130
+    }
+  ]
+}

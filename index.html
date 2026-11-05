@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-HK">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>奇妙考察隊 · 四上人文課1–4</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="hud">
+  <div id="missionPill" class="pill" data-testid="mission-pill">🗺️ 準備出發</div>
+  <div id="stats" class="pill right" data-testid="stats">⭐ 0 · ⏱ --</div>
+  <div id="progress" data-testid="progress"></div>
+  <div id="prompt" data-testid="prompt"></div>
+  <div id="cross"></div>
+  <button id="act" data-testid="act" aria-label="行動">✋</button>
+  <div id="joy" data-testid="joy"><div id="knob"></div></div>
+  <div id="toast" data-testid="toast"></div>
+  <div id="boardHost" data-testid="board-host"></div>
+</div>
+
+<div id="title" class="ov" data-testid="title">
+  <div class="icons">🗺️ ⛰️ 🌦️ 🌍</div>
+  <h1>奇妙考察隊</h1>
+  <p class="sub">四上人文 · 課1–4 溫習任務</p>
+  <p class="howto">🕹️ 左邊搖桿／WASD 移動 · 右邊拖／滑鼠望 · ✋／E 互動<br>完成 12 個任務 · 約 30–45 分鐘</p>
+  <button class="btn" id="go" data-testid="start">▶ 開始考察</button>
+</div>
+
+<div id="end" class="ov hide" data-testid="end">
+  <h1>🎉 考察完成！</h1>
+  <div id="endStars" class="stars"></div>
+  <div id="endScore" class="sub"></div>
+  <p class="sum">你覆習了：小小考察隊 · 漫遊香港 · 香港的氣候 · 發現地球</p>
+  <button class="btn" id="replay">🔁 再玩</button>
+</div>
+
+<script type="importmap">
+{"imports":{
+  "three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+}}
+</script>
+<script type="module" src="js/game.js"></script>
+</body>
+</html>

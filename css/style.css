@@ -1,0 +1,72 @@
+*{box-sizing:border-box;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
+html,body{margin:0;height:100%;overflow:hidden;background:#0a1220;touch-action:none;overscroll-behavior:none;
+  font-family:"PingFang HK","Noto Sans TC","Microsoft JhengHei",sans-serif;color:#fff}
+canvas{display:block;touch-action:none;position:fixed;inset:0}
+.hide{display:none!important}
+.ov{position:fixed;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  background:radial-gradient(ellipse at 50% 30%,#1a3a5ccc,#070b16f2);text-align:center;padding:16px}
+.icons{font-size:48px;letter-spacing:8px;margin-bottom:6px}
+h1{font-size:clamp(28px,6vw,48px);margin:6px;letter-spacing:3px}
+.sub{font-size:clamp(15px,3.2vw,22px);opacity:.9;margin:4px}
+.howto{font-size:clamp(13px,2.6vw,17px);line-height:1.55;opacity:.85;margin:12px 0 18px;max-width:560px}
+.btn{font-size:clamp(18px,4vw,28px);padding:12px 34px;border:0;border-radius:40px;background:#2f80ed;color:#fff;
+  box-shadow:0 6px 0 #1a4f99;cursor:pointer;font-family:inherit;pointer-events:auto;touch-action:manipulation}
+.btn:active{transform:translateY(3px);box-shadow:0 3px 0 #1a4f99}
+.stars{font-size:56px;margin:8px}
+.sum{font-size:15px;opacity:.85;max-width:520px;line-height:1.5}
+
+#hud{position:fixed;inset:0;pointer-events:none;z-index:5}
+.pill{position:absolute;top:max(10px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);
+  background:rgba(255,255,255,.94);color:#1a2740;border-radius:22px;padding:8px 18px;font-size:clamp(14px,2.8vw,20px);
+  box-shadow:0 3px 12px #0005;max-width:min(92vw,520px);text-align:center;line-height:1.35}
+.pill.right{left:auto;right:10px;transform:none;font-size:clamp(13px,2.4vw,17px);padding:6px 12px}
+#progress{position:absolute;top:max(52px,calc(env(safe-area-inset-top) + 46px));left:50%;transform:translateX(-50%);
+  display:flex;gap:5px;flex-wrap:wrap;justify-content:center;max-width:94vw}
+#progress i{width:14px;height:14px;border-radius:50%;background:#ffffff44;border:2px solid #fff8;font-style:normal;font-size:0}
+#progress i.done{background:#4cd964;border-color:#2fa84f}
+#progress i.cur{background:#ffe36e;border-color:#f5c518;box-shadow:0 0 8px #ffe36e}
+#cross{position:absolute;left:50%;top:50%;width:12px;height:12px;margin:-6px;border:2px solid #fff;border-radius:50%;opacity:.75}
+#prompt{position:absolute;left:50%;bottom:22%;transform:translateX(-50%);background:rgba(10,20,40,.75);
+  padding:8px 16px;border-radius:14px;font-size:clamp(14px,2.8vw,18px);display:none;white-space:nowrap;max-width:90vw;overflow:hidden;text-overflow:ellipsis}
+#act{pointer-events:auto;position:absolute;right:max(18px,env(safe-area-inset-right));bottom:max(28px,env(safe-area-inset-bottom));
+  width:100px;height:100px;border-radius:50%;border:4px solid #fff;background:#ffcc00;color:#222;font-size:40px;
+  opacity:.35;box-shadow:0 6px 0 #a80;font-family:inherit;display:none}
+#act.on{opacity:1;animation:pul .9s infinite}
+@keyframes pul{50%{transform:scale(1.08)}}
+#joy{pointer-events:none;position:absolute;left:24px;bottom:max(24px,env(safe-area-inset-bottom));width:130px;height:130px;
+  border-radius:50%;background:#fff3;border:3px solid #fff7;display:none}
+#knob{position:absolute;left:40px;top:40px;width:50px;height:50px;border-radius:50%;background:#fffd}
+#toast{position:absolute;left:50%;top:32%;transform:translate(-50%,-50%);font-size:clamp(28px,7vw,64px);
+  opacity:0;transition:opacity .25s;pointer-events:none;text-shadow:0 3px 10px #000a;text-align:center}
+#boardHost{position:absolute;inset:0;display:none;align-items:flex-end;justify-content:center;background:transparent;pointer-events:none;padding:12px;padding-bottom:max(12px,env(safe-area-inset-bottom))}
+#boardHost.show{display:flex}
+#boardHost.modal{background:rgba(5,12,24,.55);align-items:center;pointer-events:auto}
+.board{background:#fffdf6;color:#1a2740;border-radius:18px;padding:16px 18px;width:min(720px,96vw);max-height:min(52vh,520px);overflow:auto;
+  box-shadow:0 10px 40px #0008;pointer-events:auto}
+#boardHost.modal .board{max-height:88vh}
+.board h2{margin:0 0 8px;font-size:clamp(18px,3.5vw,24px);color:#1b4f9c}
+.board .row{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0;justify-content:center}
+.chip,.choice{pointer-events:auto;touch-action:manipulation;border:2px solid #c5d0e0;background:#f3f7ff;border-radius:14px;
+  padding:10px 14px;font-size:clamp(14px,2.8vw,18px);font-family:inherit;cursor:pointer;color:#1a2740}
+.chip.sel,.choice.sel{border-color:#2f80ed;background:#d6e8ff}
+.chip.ok,.choice.ok{border-color:#2fa84f;background:#d8f5d0}
+.chip.bad,.choice.bad{border-color:#d64545;background:#ffd0c8}
+.drop{min-width:110px;min-height:48px;border:2px dashed #8aa;border-radius:12px;padding:8px;background:#eef6ff;text-align:center}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;max-width:360px;margin:10px auto}
+.cell{aspect-ratio:1;background:#dce8f5;border-radius:10px;display:flex;align-items:center;justify-content:center;
+  font-size:13px;border:2px solid #bcd;position:relative;cursor:pointer}
+.cell.mark{outline:3px solid #2f80ed}
+.cell .tag{position:absolute;top:2px;left:4px;font-size:11px;opacity:.7}
+.slotrow{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:10px 0}
+.slot{min-width:88px;min-height:56px;border:2px dashed #9ab;border-radius:12px;background:#eef5ff;display:flex;align-items:center;justify-content:center;font-size:13px;flex-direction:column}
+.slot.filled{border-style:solid;background:#d8f5d0;border-color:#2fa84f}
+.piece{cursor:grab}
+.board .go{display:block;margin:12px auto 0;border:0;border-radius:14px;padding:10px 24px;background:#2f80ed;color:#fff;font-size:18px;font-family:inherit;pointer-events:auto}
+
+@media (max-width:700px),(max-aspect-ratio:3/4){
+  .pill{top:max(8px,env(safe-area-inset-top));font-size:15px;padding:6px 12px;border-radius:16px}
+  .pill.right{top:auto;bottom:max(150px,calc(env(safe-area-inset-bottom) + 140px));right:10px}
+  #progress{top:max(44px,calc(env(safe-area-inset-top) + 40px))}
+  #act{width:86px;height:86px;font-size:34px}
+  #prompt{bottom:26%}
+}
