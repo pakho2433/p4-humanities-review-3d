@@ -49,7 +49,7 @@ async function pickTok(id) { const t = (await targets()).find((t) => t.id === id
 async function useType(type, label) { const t = (await targets()).find((t) => t.type === type && (!label || t.label === label)); await interact(t.x, t.z); }
 const clickText = async (sel, text) => page.locator(sel, { hasText: text }).first().click();
 const shots = [];
-async function shot(n) { const f = `previews/v2_play_${n}.png`; await page.screenshot({ path: f }); shots.push(f); }
+async function shot(n) { const f = `previews/v2b_play_${n}.png`; await page.screenshot({ path: f }); shots.push(f); }
 
 // M1
 await waitMission(0); log('M1');

@@ -1,0 +1,13 @@
+import { chromium } from 'playwright';
+const [mi, x, y, z, yaw, pitch, out] = process.argv.slice(2);
+const b = await chromium.launch({ args: ['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader'] });
+const p = await b.newPage({ viewport: { width: 1000, height: 640 } });
+await p.goto('http://127.0.0.1:8765/');
+await p.waitForFunction(() => document.body.classList.contains('ready'), null, { timeout: 90000 });
+await p.click('[data-testid="start"]');
+await p.evaluate((i) => window.__GAME.jumpTo(i), +mi);
+await p.waitForTimeout(1200);
+await p.evaluate(([x, y, z, yaw, pitch]) => { window.__GAME.view(x, y, z, yaw, pitch); document.getElementById('boardHost').style.display = 'none'; }, [+x, +y, +z, +yaw, +pitch]);
+await p.waitForTimeout(1800);
+await p.screenshot({ path: out });
+await b.close();

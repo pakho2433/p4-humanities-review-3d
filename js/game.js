@@ -80,20 +80,50 @@ function loadModels() {
         if (!o.isMesh) return;
         o.castShadow = true; o.receiveShadow = true;
         const ms = Array.isArray(o.material) ? o.material : [o.material];
-        ms.forEach((m) => { if (!m) return; m.envMapIntensity = 0.8; if (pal && pal[m.name] !== undefined) { m.color.set(pal[m.name]); m.roughness = m.name === 'Hair' ? 0.55 : 0.75; } });
+        ms.forEach((m) => { if (!m) return; m.envMapIntensity = 0.8; if (m.name === 'Face') { m.color.set(0x1b1410); m.roughness = 0.25; }
+        if (pal && pal[m.name] !== undefined) { m.color.set(pal[m.name]); m.roughness = m.name === 'Hair' ? 0.55 : 0.75; } });
       });
+      if (PALETTE[k]) addEyes(g.scene);
+      if (PALETTE[k] || ['boy','girl','elder','worker','teacher','girl2','boy2'].includes(k)) { const bb = new THREE.Box3().setFromObject(g.scene); g.unit = 1.72 / (bb.max.y - bb.min.y); console.info('model h', k, (bb.max.y - bb.min.y).toFixed(2)); }
       MODELS[k] = g;
     } catch (e) { console.warn('model', k, e); }
   })));
 }
 const mixers = [];
+function addEyes(scene) {
+  scene.updateMatrixWorld(true);
+  let brow = null, head = null;
+  scene.traverse((o) => { if (o.isMesh && o.material?.name === 'Face') brow = o; if (o.isBone && /head/i.test(o.name) && !head) head = o; });
+  if (!brow || !head) return;
+  const bb = new THREE.Box3(); const v = new THREE.Vector3();
+  const n = brow.geometry.attributes.position.count;
+  for (let i = 0; i < n; i++) { if (brow.isSkinnedMesh) brow.getVertexPosition(i, v); else v.fromBufferAttribute(brow.geometry.attributes.position, i); v.applyMatrix4(brow.matrixWorld); bb.expandByPoint(v); }
+  const H = new THREE.Box3().setFromObject(scene).getSize(new THREE.Vector3()).y;
+  const w = bb.max.x - bb.min.x, cx = (bb.max.x + bb.min.x) / 2;
+  const r = H * 0.024;
+  const eyeM = new THREE.MeshStandardMaterial({ color: 0x15110e, roughness: 0.15 });
+  const hiM = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  const cheekM = new THREE.MeshBasicMaterial({ color: 0xff8f8f, transparent: true, opacity: 0.45, depthWrite: false });
+  const mouthM = new THREE.MeshStandardMaterial({ color: 0x8a3b30, roughness: 0.5 });
+  const add = (mesh, x, y, z) => { const p = new THREE.Vector3(x, y, z); head.worldToLocal(p); mesh.position.copy(p); head.add(mesh); };
+  const z = bb.max.z;
+  for (const s of [-1, 1]) {
+    const ex = cx + s * w * 0.24, ey = bb.min.y - r * 1.3;
+    const e = new THREE.Mesh(new THREE.SphereGeometry(r, 16, 12), eyeM); e.scale.set(0.95, 1.25, 0.55); add(e, ex, ey, z - r * 0.1);
+    const h = new THREE.Mesh(new THREE.SphereGeometry(r * 0.32, 8, 6), hiM); add(h, ex + r * 0.25, ey + r * 0.4, z + r * 0.15);
+    const c = new THREE.Mesh(new THREE.CircleGeometry(r * 0.9, 16), cheekM); add(c, cx + s * w * 0.4, ey - r * 1.8, z + r * 0.05);
+  }
+  const m = new THREE.Mesh(new THREE.TorusGeometry(r * 0.9, r * 0.22, 6, 12, Math.PI), mouthM); m.rotation.z = Math.PI; add(m, cx, bb.min.y - r * 3.6, z + r * 0.05);
+}
 function spawnPerson(kind, x, z, scale = 1, rotY = 0, clip = 'Idle') {
   const src = MODELS[kind];
   if (!src) { const g = new THREE.Group(); g.position.set(x, 0, z); return g; }
-  const root = SkeletonUtils.clone(src.scene);
-  root.position.set(x, 0, z); root.rotation.y = rotY; root.scale.setScalar(scale);
+  const inner = SkeletonUtils.clone(src.scene);
+  inner.scale.setScalar(scale * (src.unit || 1));
+  const root = new THREE.Group(); root.add(inner);
+  root.position.set(x, 0, z); root.rotation.y = rotY;
   if (src.animations?.length) {
-    const mx = new THREE.AnimationMixer(root);
+    const mx = new THREE.AnimationMixer(inner);
     const c = src.animations.find((a) => a.name === clip) || src.animations[0];
     const act = mx.clipAction(c); act.play(); act.time = Math.random() * c.duration;
     mixers.push(mx); root.userData.mixer = mx; root.userData.clips = src.animations;
@@ -386,7 +416,8 @@ function addTok(opts, data) {
 }
 function classroom({ w = 16, d = 14, title = '小小考察隊', lines = [], desks = true } = {}) {
   A.indoor({ bg: 0xcfe2f5, expo: 1.15, sunI: 2.6, sunDir: [-14, 9, 3], envI: 0.6 });
-  A.room({ w, d, h: 3.6, floor: 'woodfloor051', floorRep: 4, wall: 'paintedplaster017', wallColor: 0xf4ecdc, windows: 'left' });
+  A.room({ w, d, h: 3.6, floor: 'woodfloor051', floorRep: 4, wall: 'plaster001', wallColor: 0xf6efe2, windows: 'left', wainscot: true });
+  for (let x = -w / 2 + 3; x < w / 2 - 1; x += 4) for (let z = -d / 2 + 3; z < d / 2 - 1; z += 4) { const pl = new THREE.PointLight(0xfff1dc, 5, 7, 1.8); pl.position.set(x, 3.3, z); worldRoot.add(pl); }
   A.board(0, 1.75, -d / 2 + 0.06, 4.4, 1.5, (g, W, H) => A.chalkboard(g, W, H, title, lines));
   // teacher desk + teacher
   const td = A.desk(-3.4, -d / 2 + 1.6, 0, false); td.scale.set(1.3, 1, 1.2);
@@ -412,6 +443,16 @@ function classroom({ w = 16, d = 14, title = '小小考察隊', lines = [], desk
       if ((r + c) % 3 === 0) { const p = spawnPerson(kids[k++ % 4], x + 0.0, z + 0.62, 0.78, Math.PI, 'Idle'); worldRoot.add(p); }
     }
   }
+  // standing classmates chatting near the windows / back
+  if (desks) {
+    const a1 = spawnPerson('girl', -6.2, 1.2, 0.8, 0.9); worldRoot.add(a1); colliders.push({ x: -6.2, z: 1.2, r: 0.4 });
+    const a2 = spawnPerson('boy2', -5.3, 2.0, 0.82, -2.4); worldRoot.add(a2); colliders.push({ x: -5.3, z: 2.0, r: 0.4 });
+    const a3 = spawnPerson('girl2', 5.6, -0.2, 0.8, -1.2, 'Victory'); worldRoot.add(a3); colliders.push({ x: 5.6, z: -0.2, r: 0.4 });
+    walker('boy', [[6.5, 4.5], [6.5, -4.5]], 0.8);
+  }
+  // window-wall extras: radiator, globe on teacher desk, notice board
+  A.board(-1.2, 1.9, d / 2 - 0.08, 2.0, 1.1, (g2, W, H) => { g2.fillStyle = '#b5835a'; g2.fillRect(0, 0, W, H); for (let i = 0; i < 9; i++) { g2.fillStyle = ['#fff6b0', '#ffd1dc', '#c9f0ff', '#d9ffd1'][i % 4]; const px = 40 + (i % 3) * 320 + Math.random() * 30, py = 30 + ((i / 3) | 0) * 180 + Math.random() * 20; g2.save(); g2.translate(px, py); g2.rotate((Math.random() - 0.5) * 0.2); g2.fillRect(0, 0, 250, 150); g2.fillStyle = '#e74c3c'; g2.beginPath(); g2.arc(125, 10, 8, 0, 7); g2.fill(); g2.fillStyle = '#555'; for (let k = 0; k < 4; k++) g2.fillRect(20, 40 + k * 25, 120 + Math.random() * 90, 8); g2.restore(); } }, Math.PI);
+  const gl = A.mesh(new THREE.SphereGeometry(0.2, 24, 16), A.std(0x2f80ed, 0.4), -3.0, 1.18, -d / 2 + 1.6);
   setBounds(Math.min(w, d) / 2 - 0.6);
 }
 function posterHK(g, w, h) {
@@ -813,7 +854,7 @@ function buildM7() {
   const items = [
     { id: 'A', name: '抽濕機', icon: '💧', color: '#56ccf2' },
     { id: 'B', name: '手提風扇', icon: '🌀', color: '#f2994a' },
-    { id: 'C', name: '暖水袋', icon: '♨️', color: '#eb5757' },
+    { id: 'C', name: '暖水袋', icon: '🔥', color: '#eb5757' },
     { id: 'D', name: '護手霜', icon: '🧴', color: '#bb6bd9' },
   ];
   items.forEach((it, i) => addTok({ x: -4.5 + i * 3, z: 3.2, icon: it.icon, name: it.name, color: it.color }, { type: 'pickup', id: it.id, label: it.name }));
@@ -948,7 +989,7 @@ function buildM9() {
     { id: 'drink', name: '熱飲', icon: '☕', color: '#eb5757' },
     { id: 'visit', name: '問候卡', icon: '💌', color: '#f2c94c' },
   ];
-  gifts.forEach((g, i) => addTok({ x: -3 + i * 3, z: 3, icon: g.icon, name: g.name, color: g.color }, { type: 'pickup', id: g.id, label: g.name }));
+  gifts.forEach((g, i) => addTok({ x: [-4, 4, -4][i], z: [2, 2, -0.6][i], icon: g.icon, name: g.name, color: g.color }, { type: 'pickup', id: g.id, label: g.name }));
   let given = 0;
   elder.userData.interact.onUse = () => {
     if (!held) return failNudge('先拿送暖物品');
