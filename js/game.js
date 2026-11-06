@@ -361,7 +361,7 @@ function completeMission(bonus = 0) {
   const m = MISSIONS[missionIndex];
   const timeBonus = Math.round(Math.max(0, missionTimeLeft) * 0.5);
   const gain = m.points + timeBonus + bonus;
-  score += gain;
+  score += gain; money += 40; updWeap();
   missionDone[missionIndex] = true;
   missionTimerOn = false;
   toast('✅');
@@ -397,6 +397,7 @@ function startMission(i) {
 }
 
 function endGame() {
+  if (!bossWon) { startBoss(); return; }
   running = false;
   hideBoard(); setPrompt('');
   missionTimerOn = false;
@@ -1200,6 +1201,94 @@ function buildM12() {
   setPill('🚨 地震！<b>匿埋 → 勿乘升降機 → 空曠處</b>');
 }
 
+
+// ===== money / shop / boss =====
+let money = 0, bossOn = false, bossWon = false, boss = null, bossHp = 0, bossCd = 2, shots = [], fireCd = 0, reloadT = 0;
+const GUNS = { water: { name: '💧 水炮槍', dmg: 10, rate: 0.25, range: 18, mag: 12, price: 0, ammoPrice: 0 }, solar: { name: '☀️ 太陽能光槍', dmg: 30, rate: 0.45, range: 40, mag: 8, price: 120, ammoPrice: 20 } };
+const inv = { water: { mag: 12, res: 999 } }; let gun = 'water';
+const ui = document.createElement('div'); ui.id = 'weap'; ui.style.cssText = 'position:fixed;left:12px;bottom:12px;z-index:6;pointer-events:auto;font-size:16px;display:flex;gap:6px;flex-wrap:wrap;align-items:center';
+document.body.appendChild(ui);
+function updWeap() {
+  const g = GUNS[gun], v = inv[gun];
+  ui.innerHTML = `<span class="pill" style="position:static;transform:none" data-testid="money">💰 ${money}</span>`
+    + (bossOn ? `<span class="pill" style="position:static;transform:none" data-testid="ammo">${g.name} ${v.mag}/${v.res}</span><button class="choice" data-testid="fire" id="fireBtn">🔫 射擊</button><button class="choice" data-testid="reload" id="rlBtn">🔄 換彈</button><button class="choice" data-testid="swap" id="swBtn">🔁 換槍</button>` : '')
+    + `<button class="choice" data-testid="shop" id="shopBtn">🛒 商店</button>`;
+  ui.querySelector('#shopBtn').onclick = openShop;
+  if (bossOn) { ui.querySelector('#fireBtn').onpointerdown = () => fire(); ui.querySelector('#rlBtn').onclick = reload; ui.querySelector('#swBtn').onclick = swap; }
+}
+function openShop() {
+  const b = showBoard(`<h2>🛒 武器商店 · 💰 ${money}</h2><div class="row" id="shopRow"></div><button class="go" id="shopClose">關閉</button>`, true);
+  const row = b.querySelector('#shopRow');
+  for (const [k, g] of Object.entries(GUNS)) {
+    const own = !!inv[k];
+    const bt = document.createElement('button'); bt.className = 'choice'; bt.dataset.testid = 'buy-' + k;
+    bt.textContent = own ? `${g.name} 補彈 +${g.mag}（$${g.ammoPrice}）` : `${g.name} 買（$${g.price}）傷害${g.dmg} 射程${g.range}`;
+    bt.onclick = () => {
+      const cost = own ? g.ammoPrice : g.price; if (money < cost) return failNudge('金錢不足');
+      money -= cost; if (own) inv[k].res += g.mag; else { inv[k] = { mag: g.mag, res: g.mag * 2 }; gun = k; }
+      toast('🛒'); updWeap(); openShop();
+    };
+    row.appendChild(bt);
+  }
+  b.querySelector('#shopClose').onclick = () => { hideBoard(); updWeap(); };
+}
+function swap() { const ks = Object.keys(inv); gun = ks[(ks.indexOf(gun) + 1) % ks.length]; updWeap(); }
+function reload() { const g = GUNS[gun], v = inv[gun]; const n = Math.min(g.mag - v.mag, v.res); if (n <= 0) return; v.res -= n; v.mag += n; reloadT = 0.8; toast('🔄', 500); updWeap(); }
+const ray = new THREE.Raycaster();
+function fire() {
+  if (!bossOn || fireCd > 0 || reloadT > 0) return; const g = GUNS[gun], v = inv[gun];
+  if (v.mag <= 0) { failNudge('冇子彈！按 R 換彈'); return; }
+  v.mag--; fireCd = g.rate; updWeap();
+  ray.setFromCamera({ x: 0, y: 0 }, C); ray.far = g.range;
+  const hit = ray.intersectObject(boss, true)[0];
+  const end = hit ? hit.point : C.position.clone().add(ray.ray.direction.clone().multiplyScalar(g.range));
+  const tr = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1, 6), new THREE.MeshBasicMaterial({ color: gun === 'water' ? 0x6fd3ff : 0xffd34d }));
+  const a = C.position.clone().add(new THREE.Vector3(0.2, -0.2, 0)); tr.position.copy(a).lerp(end, 0.5); tr.scale.y = a.distanceTo(end); tr.lookAt(end); tr.rotateX(Math.PI / 2); worldRoot.add(tr); setTimeout(() => worldRoot.remove(tr), 80);
+  if (hit) { bossHp -= g.dmg; toast('💥', 250); boss.scale.setScalar(1.05); setTimeout(() => boss && boss.scale.setScalar(1), 80); setPill(`👾 污染地球怪獸 <b>${Math.max(0, bossHp)} HP</b> · ❤️ ${pHp}`); if (bossHp <= 0) winBoss(); }
+}
+let pHp = 100;
+function startBoss() {
+  clearWorld(); bossOn = true; pHp = 100; bossHp = 600; bossCd = 2.5;
+  A.outdoor({ elev: 12, azim: 200, turb: 12, rayleigh: 3, fog: 0x8a7a5a, near: 20, far: 90, sunC: 0xffa060, expo: 0.55 });
+  A.ground('ground054', 80, 20);
+  for (let i = 0; i < 14; i++) A.tree((Math.random() - 0.5) * 40, -14 - Math.random() * 10, 1.2, { bare: true });
+  for (const [x, z] of [[-4, -1], [4, -1], [0, 3]]) { A.mesh(new THREE.CylinderGeometry(0.6, 0.7, 2, 16), A.pbr('concrete034', 1), x, 1, z); colliders.push({ x, z, r: 0.9 }); }
+  boss = new THREE.Group(); boss.position.set(0, 0, -9);
+  const body = A.mesh(new THREE.SphereGeometry(2, 32, 24), new THREE.MeshPhysicalMaterial({ color: 0x4b3d5c, roughness: 0.3, clearcoat: 1, emissive: 0x1a3010 }), 0, 2.2, 0, boss); body.scale.y = 0.85;
+  for (const s of [-1, 1]) { A.mesh(new THREE.SphereGeometry(0.35, 16, 12), A.std(0xffff66, 0.2, 0, { emissive: 0xffee00, emissiveIntensity: 2 }), s * 0.7, 2.9, 1.7, boss); A.mesh(new THREE.CylinderGeometry(0.35, 0.45, 2.2, 12), A.std(0x8a3b2a, 0.7), s * 1.2, 4, -0.4, boss); }
+  A.mesh(new THREE.TorusGeometry(0.6, 0.12, 8, 16, Math.PI), A.std(0x220000), 0, 1.9, 1.85, boss).rotation.z = 0;
+  const smoke = A.particles(120, 3, 0x555555, 0.3, -0.8, 6); boss.add(smoke); smoke.position.y = 4;
+  worldRoot.add(boss);
+  setBounds(14); player.x = 0; player.z = 8; player.yaw = 0; player.pitch = 0.1;
+  setPill(`👾 污染地球怪獸 <b>${bossHp} HP</b> · ❤️ ${pHp}`); hint('點擊／🔫 射擊 · R 換彈 · Q 換槍 · 躲開污泥球');
+  updWeap();
+}
+function bossTick(dt) {
+  fireCd -= dt; if (reloadT > 0) reloadT -= dt;
+  if (!boss) return;
+  const dx = player.x - boss.position.x, dz = player.z - boss.position.z, d = Math.hypot(dx, dz);
+  boss.rotation.y = Math.atan2(dx, dz); const sp = bossHp < 300 ? 2.2 : 1.3;
+  if (d > 6) { boss.position.x += (dx / d) * sp * dt; boss.position.z += (dz / d) * sp * dt; }
+  boss.position.y = Math.abs(Math.sin(clock.elapsedTime * 3)) * 0.3;
+  if (d < 3.2) hurt(25 * dt);
+  bossCd -= dt;
+  if (bossCd <= 0) { bossCd = bossHp < 300 ? 1.2 : 2.2; const b = A.mesh(new THREE.SphereGeometry(0.35, 12, 8), A.std(0x6aff3a, 0.4, 0, { emissive: 0x2a8a10 }), boss.position.x, 2.4, boss.position.z); const v = new THREE.Vector3(dx, 0, dz).normalize().multiplyScalar(9); shots.push({ b, v, t: 0 }); }
+  for (const s of shots) { s.t += dt; s.b.position.addScaledVector(s.v, dt); s.b.position.y = Math.max(0.5, 2.4 - s.t * 0.9); if (s.b.position.distanceTo(new THREE.Vector3(player.x, 1, player.z)) < 0.9) { hurt(15); s.t = 99; } }
+  shots = shots.filter((s) => { if (s.t > 4) { worldRoot.remove(s.b); return false; } return true; });
+  if (keys['KeyF'] || mouseFire) fire();
+}
+let mouseFire = false;
+R.domElement.addEventListener('mousedown', (e) => { if (bossOn && e.button === 0) { mouseFire = true; fire(); } });
+addEventListener('mouseup', () => { mouseFire = false; });
+addEventListener('keydown', (e) => { if (!bossOn) return; if (e.code === 'KeyR') reload(); if (e.code === 'KeyQ') swap(); });
+function hurt(n) {
+  pHp = Math.max(0, Math.round(pHp - n)); setPill(`👾 污染地球怪獸 <b>${Math.max(0, bossHp)} HP</b> · ❤️ ${pHp}`); shake = 0.4; setTimeout(() => (shake = 0), 200);
+  if (pHp <= 0) { bossOn = false; const b = showBoard(`<h2>😵 被污染擊倒</h2><p class="tip">去商店補彈或買新武器，再挑戰！</p><button class="go" data-testid="retry" id="retry">🔁 重試 Boss</button>`, true); b.querySelector('#retry').onclick = () => { inv.water.mag = 12; startBoss(); }; }
+}
+function winBoss() { bossOn = false; bossWon = true; worldRoot.remove(boss); boss = null; money += 200; score += 500; toast('🏆', 1500); setTimeout(endGame, 1200); }
+window.__BOSS = { start: startBoss, give(n) { money += n; updWeap(); }, get s() { return { bossOn, bossHp, pHp, money, gun, inv: JSON.parse(JSON.stringify(inv)) }; } };
+updWeap();
+
 // ---- interaction ----
 function tryInteract() {
   const m = nearestInteractable();
@@ -1254,6 +1343,7 @@ function adapt(dt) {
 function loop() {
   const dt = Math.min(0.05, clock.getDelta());
   if (running && !boardModal) movePlayer(dt);
+  if (running && bossOn) bossTick(dt);
   if (running && missionTimerOn) {
     missionTimeLeft -= dt;
     if (missionTimeLeft <= 0) {
