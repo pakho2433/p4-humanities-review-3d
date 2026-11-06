@@ -180,7 +180,7 @@ function setCam() {
 
 // pointer look (desktop)
 R.domElement.addEventListener('mousedown', (e) => {
-  if (e.button !== 0 || boardModal) return;
+  if (boardModal) return;
   lookDrag = { x: e.clientX, y: e.clientY };
 });
 addEventListener('mouseup', () => { lookDrag = null; });
@@ -300,7 +300,8 @@ function hint(t) { const h = $('hint'); if (h) { h.textContent = t; h.classList.
 function updateHeldHud() { const h = $('held'); if (!h) return; h.classList.toggle('show', !!held); h.innerHTML = held ? `<span>手持</span><b>${held.label}</b>` : ''; }
 function setStats() {
   const m = Math.max(0, Math.ceil(missionTimeLeft));
-  $('stats').textContent = `⭐ ${score} · ⏱ ${missionTimerOn ? m + 's' : '--'}`;
+  const el = Math.floor((performance.now() - (window.__t0 || performance.now())) / 1000);
+  $('stats').textContent = `⭐ ${score} · ⏱ ${Math.floor(el / 60)}:${String(el % 60).padStart(2, '0')}`;
 }
 function setPrompt(txt) {
   const p = $('prompt');
@@ -342,7 +343,7 @@ function makeInteractable(mesh, data) {
 }
 
 function nearestInteractable() {
-  let best = null, bd = 2.1;
+  let best = null, bd = 2.1, bs = 1e9;
   const fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw);
   for (const m of interactables) {
     if (!m.visible || m.userData.spent) continue;
@@ -350,14 +351,18 @@ function nearestInteractable() {
     const dx = p.x - player.x, dz = p.z - player.z;
     const d = Math.hypot(dx, dz);
     if (d > bd) continue;
-    if ((dx * fx + dz * fz) / (d || 1) < 0.2 && d > 1.0) continue;
-    best = m; bd = d;
+    const dot = (dx * fx + dz * fz) / (d || 1);
+    if (dot < 0.2 && d > 1.0) continue;
+    const sc = d * (1.6 - dot);
+    if (sc < bs) { best = m; bs = sc; }
   }
   return best;
 }
 const _v = new THREE.Vector3();
 
+const FIGHT = { 1: 3, 4: 4, 7: 4, 9: 5 }; const fought = {};
 function completeMission(bonus = 0) {
+  if (FIGHT[missionIndex] && !fought[missionIndex]) { fought[missionIndex] = true; hideBoard(); spawnSlimes(FIGHT[missionIndex], () => completeMission(bonus)); return; }
   const m = MISSIONS[missionIndex];
   const timeBonus = Math.round(Math.max(0, missionTimeLeft) * 0.5);
   const gain = m.points + timeBonus + bonus;
@@ -385,7 +390,7 @@ function startMission(i) {
   missionIndex = i;
   const m = MISSIONS[i];
   missionTimeLeft = m.seconds;
-  missionTimerOn = true;
+  missionTimerOn = false;
   player.x = 0; player.z = 5; player.yaw = 0; player.pitch = 0;
   setPill(`<span class="ic">${m.icon}</span><b>${m.name}</b><small>${CONTENT.lessons.find((l) => l.id === m.lesson).name}</small>`);
   hint(m.hint);
@@ -605,6 +610,26 @@ function parkScene() {
   setBounds(9);
 }
 
+
+// generic hands-on carry task: items -> pads (3D)
+function placeTask(items, pads, onDone, tip) {
+  let left = pads.length;
+  items.forEach((it) => addTok({ x: it.x, z: it.z, icon: it.icon, name: it.name, color: it.color || '#2f80ed', face: it.face }, { type: 'pickup', id: it.id, label: it.name }));
+  pads.forEach((pd) => {
+    const node = pd.node || A.pad({ x: pd.x, z: pd.z, name: pd.name, icon: pd.icon || '', color: pd.color || '#27ae60', r: pd.r || 0.8 });
+    if (pd.node) node.position.set(pd.x, 0, pd.z);
+    makeInteractable(node, { type: 'dropzone', label: pd.name, want: pd.want, onUse: () => {
+      if (!held) return failNudge('先拿物品');
+      if (held.id !== pd.want) { const h = held; held = null; updateHeldHud(); const t = interactables.find((m) => m.userData.interact.id === h.id); if (t) { t.visible = true; t.userData.spent = false; } return failNudge(pd.wrong || '放錯位置'); }
+      const t = interactables.find((m) => m.userData.interact.id === held.id);
+      if (t) { t.visible = true; t.position.set(pd.x + 0.7, 0, pd.z); t.scale.setScalar(0.6); }
+      held = null; updateHeldHud(); node.userData.spent = true; toast('✔️'); money += 5; updWeap();
+      if (node.userData.inner) node.userData.inner.material.color.set(0x5fd36a);
+      if (--left <= 0) onDone();
+    } });
+  });
+  if (tip) setPill(tip);
+}
 // ========== MISSION BUILDERS ==========
 function buildM1() {
   classroom({ title: '地圖配對', lines: ['世界地圖 · 亞洲地圖', '香港全境圖 · 香港街道圖'] });
@@ -664,25 +689,10 @@ function buildM2() {
         found++; toast('📦');
         setPill(`🧭 格網尋寶 <b>${found}/${targets.length}</b>`);
         if (found >= targets.length) {
-          showBoard(`
-            <h2>🧭 西港城 → 上環文娛中心</h2>
-            <p class="tip">先向哪方？再向哪方？</p>
-            <div class="row" id="dirs"></div>
-          `);
-          const order = [];
-          const row = $('boardHost').querySelector('#dirs');
-          ['北', '南', '東', '西'].forEach((d) => {
-            const b = document.createElement('button');
-            b.className = 'choice'; b.textContent = d; b.dataset.d = d;
-            b.onclick = () => {
-              order.push(d); b.classList.add('sel');
-              if (order.length === 2) {
-                if (order[0] === '南' && order[1] === '西') completeMission(20);
-                else { failNudge('方向：先南後西'); order.length = 0; row.querySelectorAll('.choice').forEach((c) => c.classList.remove('sel')); }
-              }
-            };
-            row.appendChild(b);
-          });
+          const st = A.label('西港城（起點）', { icon: '🏛️', accent: '#2f80ed' }); st.position.set(0, 0.3, 2.5); worldRoot.add(st);
+          setPill('🧭 由西港城出發：<b>先向南，再向西</b>（北 = 前方）');
+          const gate = (x, z, dir, ok, next) => { const g = A.pad({ x, z, name: '向' + dir, icon: '➡️', color: ok ? '#2f80ed' : '#7f8c8d', r: 0.7 }); makeInteractable(g, { type: 'gate', label: '向' + dir, want: ok ? 'ok' : 'no', onUse: () => { if (!ok) return failNudge('方向不對：先南後西'); g.userData.spent = true; toast('👣'); next(); } }); return g; };
+          const g1 = [gate(0, 6.2, '南', true, () => { g1.forEach((g) => (g.visible = false)); gate(-6.5, 6.2, '西', true, () => { toast('🎭'); completeMission(20); }); gate(6.5, 6.2, '東', false); }), gate(0, -2, '北', false), gate(3.5, 2.5, '東', false)];
         }
       },
     });
@@ -727,126 +737,55 @@ function buildM3() {
 
 function buildM4() {
   hillsScene();
-  player.z = 3; player.pitch = 0.08;
-  showBoard(`
-    <h2>⛰️ 香港地勢特徵</h2>
-    <div id="q"></div>
-    <button class="go" id="chk">提交</button>`, true);
-  const qs = [
-    { q: '山地', opts: ['多', '不多'], ans: ['多'] },
-    { q: '平地', opts: ['較多', '較少'], ans: ['較少'] },
-    { q: '平地分佈', opts: ['較分散', '較集中'], ans: ['較分散'] },
-    { q: '平地主要分佈在（多選）', opts: ['新界北部', '新界東部', '新界西北部', '九龍', '香港島'], ans: ['新界北部', '新界西北部', '九龍'], multi: true },
-  ];
-  const qel = $('boardHost').querySelector('#q');
-  const picks = qs.map(() => new Set());
-  qs.forEach((item, qi) => {
-    const wrap = document.createElement('div');
-    wrap.innerHTML = `<p class="q"><b>${qi + 1}</b> ${item.q}</p>`;
-    const row = document.createElement('div'); row.className = 'row';
-    item.opts.forEach((o) => {
-      const b = document.createElement('button'); b.className = 'choice'; b.textContent = o;
-      b.onclick = () => {
-        if (!item.multi) { picks[qi].clear(); row.querySelectorAll('.choice').forEach((c) => c.classList.remove('sel')); }
-        if (picks[qi].has(o)) { picks[qi].delete(o); b.classList.remove('sel'); }
-        else { picks[qi].add(o); b.classList.add('sel'); }
-      };
-      row.appendChild(b);
-    });
-    wrap.appendChild(row); qel.appendChild(wrap);
-  });
-  $('boardHost').querySelector('#chk').onclick = () => {
-    const ok = qs.every((item, qi) => item.ans.length === picks[qi].size && item.ans.every((a) => picks[qi].has(a)));
-    if (ok) completeMission(); else failNudge('再對照地圖');
-  };
+  player.z = 4; player.pitch = 0.08; setBounds(4.6);
+  const map = A.mesh(new THREE.PlaneGeometry(8, 3.6), new THREE.MeshStandardMaterial({ roughness: 0.8, map: A.canvasTex(1024, 460, (g, w, h) => { g.fillStyle = '#9fd0ef'; g.fillRect(0, 0, w, h); g.fillStyle = '#7cb36a'; g.beginPath(); g.ellipse(w * 0.5, h * 0.35, w * 0.42, h * 0.3, 0, 0, 7); g.fill(); g.fillStyle = '#d9c38a'; g.beginPath(); g.ellipse(w * 0.55, h * 0.7, w * 0.1, h * 0.08, 0, 0, 7); g.fill(); g.beginPath(); g.ellipse(w * 0.6, h * 0.88, w * 0.12, h * 0.07, 0, 0, 7); g.fill(); g.fillStyle = '#123'; g.font = `700 36px ${A.FONT}`; g.fillText('香港地勢模型', 20, 44); }) }), 0, 0.27, 2.2);
+  map.rotation.x = -Math.PI / 2; map.castShadow = false;
+  const flags = [0, 1, 2].map((i) => ({ id: 'flat' + i, name: '平地旗 ' + (i + 1), icon: '🚩', color: '#f2994a', x: -3.6 + i * 0.8, z: 4.2 }));
+  const regs = [['新界北部', -1.4, 1.3, 1], ['新界西北部', -3.2, 1.7, 1], ['九龍', 0.2, 2.5, 1], ['新界東部', 3.0, 1.2, 0], ['香港島', 2.6, 3.9, 0]];
+  let n = 0;
+  const pads = regs.map(([name, x, z, ok]) => ({ name, x, z, r: 0.5, want: ok ? '__any' : '__no' }));
+  placeTask(flags, [], () => {}, '⛰️ 把 3 支 <b>平地旗</b> 插在平地集中的地方');
+  pads.forEach((pd) => { const node = A.pad({ x: pd.x, z: pd.z, name: pd.name, icon: '📍', color: '#27ae60', r: 0.45 }); makeInteractable(node, { type: 'dropzone', label: pd.name, want: pd.want === '__any' ? 'flat' : 'no', onUse: () => {
+    if (!held) return failNudge('先拿平地旗');
+    if (pd.want !== '__any') { const h = held; held = null; updateHeldHud(); const t = interactables.find((m) => m.userData.interact.id === h.id); t.visible = true; t.userData.spent = false; return failNudge(pd.name + '多山，平地少'); }
+    held = null; updateHeldHud(); node.userData.spent = true; node.userData.inner.material.color.set(0xf2994a); toast('🚩'); money += 5; updWeap();
+    if (++n >= 3) quickQuiz('⛰️ 香港地勢', [{ q: '山地', opts: ['多', '不多'], ans: '多' }, { q: '平地', opts: ['較多', '較少'], ans: '較少' }, { q: '平地分佈', opts: ['較分散', '較集中'], ans: '較分散' }], () => completeMission());
+  } }); });
+}
+function quickQuiz(title, qs, ok) {
+  const b = showBoard(`<h2>${title}</h2><div id="qq"></div><button class="go" id="chk">提交</button>`, true);
+  const pick = {};
+  qs.forEach((q, i) => { const w = document.createElement('div'); w.className = 'qi'; w.innerHTML = `<span>${q.q}</span>`; const r = document.createElement('div'); r.className = 'row';
+    q.opts.forEach((o) => { const bt = document.createElement('button'); bt.className = 'choice'; bt.textContent = o; if (o === q.ans) bt.dataset.ok = '1'; bt.onclick = () => { pick[i] = o; r.querySelectorAll('.choice').forEach((c) => c.classList.remove('sel')); bt.classList.add('sel'); }; r.appendChild(bt); });
+    w.appendChild(r); b.querySelector('#qq').appendChild(w); });
+  b.querySelector('#chk').onclick = () => { if (qs.every((q, i) => pick[i] === q.ans)) { hideBoard(); ok(); } else failNudge('再想想'); };
 }
 
 function buildM5() {
   harbourScene();
   player.z = 7;
-  addTok({ x: -4, z: 1, icon: '🐬', name: '中華白海豚', color: '#ff8fa3' }, { type: 'pickup', id: 'dolphin', label: '中華白海豚' });
-  const park = A.pad({ x: 4, z: -1.6, name: '海岸公園', icon: '🌊', color: '#1fa3c9', r: 1.1 });
-  makeInteractable(park, {
-    type: 'dropzone', id: 'park', label: '海岸公園',
-    onUse: () => {
-      if (!held || held.id !== 'dolphin') return failNudge('先帶海豚到公園');
-      held = null; updateHeldHud(); park.userData.saved = true; park.userData.spent = true; toast('🐬');
-      maybeDone();
-    },
-  });
-  showBoard(`
-    <h2>✈️ 機場時間線</h2>
-    <p class="tip">由舊到新點選 · 再把海豚送到 <b>${F.airport.marinePark}</b></p>
-    <div class="row" id="tl"></div>
-    <p id="tlOut" class="out"></p>
-  `);
-  const years = F.airport.timeline.map((t) => t.y);
-  const shuffled = [...years].sort(() => Math.random() - 0.5);
-  const chosen = [];
-  const tl = $('boardHost').querySelector('#tl');
-  shuffled.forEach((y) => {
-    const b = document.createElement('button'); b.className = 'choice'; b.textContent = y;
-    b.onclick = () => {
-      if (b.classList.contains('sel')) return;
-      b.classList.add('sel'); chosen.push(y);
-      $('boardHost').querySelector('#tlOut').textContent = chosen.join(' → ');
-      maybeDone();
-    };
-    tl.appendChild(b);
-  });
-  function maybeDone() {
-    const orderOk = chosen.length === years.length && chosen.every((y, i) => y === years[i]);
-    if (orderOk && park.userData.saved) completeMission();
-    else if (chosen.length === years.length && !orderOk) {
-      failNudge('時間線次序不對'); chosen.length = 0;
-      tl.querySelectorAll('.choice').forEach((c) => c.classList.remove('sel'));
-      $('boardHost').querySelector('#tlOut').textContent = '';
-    }
-  }
+  const tl = F.airport.timeline;
+  const items = tl.map((t, i) => ({ id: 'ev' + i, name: t.t, icon: ['🛬', '✈️', '🏗️', '🚧', '🛫'][i], color: '#2f80ed', x: [-7, -3.5, 0, 3.5, 7][(i * 3) % 5], z: 6 }));
+  const pads = tl.map((t, i) => ({ id: 'y' + i, name: t.y, icon: '📅', x: -7 + i * 3.5, z: 0.8, want: 'ev' + i, wrong: '年份不對，再看時間線', color: '#f2994a', r: 0.75 }));
+  placeTask(items, pads, () => {
+    setPill('🐬 把中華白海豚送到 <b>' + F.airport.marinePark + '</b>');
+    placeTask([{ id: 'dolphin', name: '中華白海豚', icon: '🐬', color: '#ff8fa3', x: -5, z: 3.4 }], [{ name: '海岸公園', icon: '🌊', x: 6, z: -2, want: 'dolphin', color: '#1fa3c9' }], () => completeMission());
+  }, '✈️ 把機場事件搬到 <b>正確年份</b>');
 }
 
 function buildM6() {
-  cityScene();
-  showBoard(`
-    <h2>🏙️ 北部都會區 · 持份者</h2>
-    <div id="stk"></div>
-    <hr>
-    <h2>📝 填充</h2>
-    <p class="fill">增加「____」供應，興建「____」，發展「____」；兼顧「____」，保育「____」，確保「____」棲息地。</p>
-    <div class="row" id="fills"></div>
-    <button class="go" id="chk">核對</button>`, true);
-  const stk = $('boardHost').querySelector('#stk');
-  const whoMap = {};
-  F.stakeholders.forEach((s, i) => {
-    const wrap = document.createElement('div');
-    wrap.innerHTML = `<p class="q"><b>${i + 1}</b> 「${s.say}」</p>`;
-    const row = document.createElement('div'); row.className = 'row';
-    [['A', '🏠 輪候公屋居民'], ['B', '💼 商界代表'], ['C', '🌿 環保人士']].forEach(([k, lab]) => {
-      const b = document.createElement('button'); b.className = 'choice'; b.textContent = lab;
-      b.onclick = () => { row.querySelectorAll('.choice').forEach((c) => c.classList.remove('sel')); b.classList.add('sel'); whoMap[i] = k; };
-      row.appendChild(b);
-    });
-    wrap.appendChild(row); stk.appendChild(wrap);
-  });
-  const fillPick = [];
-  const fills = $('boardHost').querySelector('#fills');
-  const words = [...F.northernFill].sort(() => Math.random() - 0.5);
-  words.forEach((w) => {
-    const b = document.createElement('button'); b.className = 'chip'; b.textContent = w;
-    b.onclick = () => {
-      if (b.classList.contains('sel')) { b.classList.remove('sel'); fillPick.splice(fillPick.indexOf(w), 1); }
-      else if (fillPick.length < 6) { b.classList.add('sel'); fillPick.push(w); }
-      b.dataset.n = b.classList.contains('sel') ? fillPick.length : '';
-      fills.querySelectorAll('.chip').forEach((c) => { c.dataset.n = c.classList.contains('sel') ? fillPick.indexOf(c.textContent) + 1 : ''; });
-    };
-    fills.appendChild(b);
-  });
-  $('boardHost').querySelector('#chk').onclick = () => {
-    const stakeOk = F.stakeholders.every((s, i) => whoMap[i] === s.who);
-    const fillOk = fillPick.length === 6 && fillPick.every((w, i) => w === F.northernFill[i]);
-    if (stakeOk && fillOk) completeMission();
-    else failNudge(!stakeOk ? '持份者不對' : '填充次序：土地→大量住宅→創新科技產業→環境保護→濕地→動植物');
-  };
+  cityScene(); A.ground('pavingstones070', 18, 5, 0.09); setBounds(7); player.z = 5;
+  const who = { A: ['🏠', '輪候公屋的居民', 'elder'], B: ['💼', '商界代表', 'teacher'], C: ['🌿', '環保人士', 'girl2'] };
+  const pads = F.stakeholders.map((s, i) => { const x = -4 + i * 4, z = -2.5; const p = spawnPerson(who[s.who][2], x, z - 0.6, 1, 0); worldRoot.add(p); colliders.push({ x, z: z - 0.6, r: 0.5 });
+    const sp = A.label('「' + s.say.slice(0, 14) + (s.say.length > 14 ? '…' : '') + '」', { accent: '#27ae60', scale: 1.1 }); sp.position.set(x, 2.15 + (i % 2) * 0.45, z - 0.6); worldRoot.add(sp);
+    return { name: '是誰？', icon: '💬', x, z: z + 0.6, want: 'b' + s.who, wrong: '再讀一次他的說話', r: 0.6 }; });
+  const items = ['A', 'B', 'C'].map((k, i) => ({ id: 'b' + k, name: who[k][1], icon: who[k][0], color: '#27ae60', x: -4 + i * 4, z: 3 }));
+  placeTask(items, pads, () => {
+    setPill('🏙️ 規劃北部都會區：<b>住宅、創科、保育濕地</b>');
+    placeTask([{ id: 'home', name: '大量住宅', icon: '🏢', x: -4, z: 3.5 }, { id: 'tech', name: '創新科技產業', icon: '🔬', x: 0, z: 3.5 }, { id: 'eco', name: '保育區', icon: '🦆', x: 4, z: 3.5 }],
+      [{ name: '新增土地（住宅）', icon: '🏗️', x: -4, z: 0.2, want: 'home', wrong: '這裏用來興建住宅' }, { name: '新增土地（產業）', icon: '🏗️', x: 0, z: 0.2, want: 'tech', wrong: '這裏用來發展產業' }, { name: '濕地', icon: '🌾', x: 4, z: 0.2, want: 'eco', wrong: '濕地要保育，保護動植物', color: '#1fa3c9' }],
+      () => completeMission());
+  }, '🏙️ 把身份牌交給 <b>說這句話的人</b>');
 }
 
 function buildM7() {
@@ -1036,68 +975,13 @@ function buildM10() {
   A.mesh(new THREE.CylinderGeometry(0.5, 0.8, 0.4, 32), A.std(0x2a3448, 0.3, 0.8), 0, 0.2, -2);
   for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; const p = new THREE.PointLight(0x3fb3ff, 2, 6); p.position.set(Math.cos(a) * 3.2, 0.3, -2 + Math.sin(a) * 3.2); worldRoot.add(p); }
   colliders.push({ x: 0, z: -2, r: 2 });
-  showBoard(`
-    <h2>🌍 七大洲拼圖</h2>
-    <p class="tip">先點名稱 → 再點缺塊</p>
-    <div class="slotrow" id="slots"></div>
-    <div class="row" id="pieces"></div>
-    <hr>
-    <h2>⚡ 快問快答</h2>
-    <div id="quiz" class="quiz"></div>
-    <button class="go" id="chk">核對</button>`, true);
-  const slots = F.earth.puzzleSlots;
-  const answers = F.earth.puzzleAnswers;
-  const placed = new Array(5).fill(null);
-  let activePiece = null;
-  const slotHost = $('boardHost').querySelector('#slots');
-  slots.forEach((name, i) => {
-    const el = document.createElement('div');
-    el.className = 'slot';
-    el.innerHTML = `<small>缺塊 ${i + 1}</small><b>—</b>`;
-    el.onclick = () => {
-      if (!activePiece) return;
-      placed[i] = activePiece;
-      el.classList.add('filled');
-      el.querySelector('b').textContent = F.earth.puzzleOptions[activePiece];
-      activePiece = null;
-      $('boardHost').querySelectorAll('#pieces .chip').forEach((c) => c.classList.remove('sel'));
-    };
-    slotHost.appendChild(el);
-  });
-  const ph = $('boardHost').querySelector('#pieces');
-  Object.entries(F.earth.puzzleOptions).forEach(([k, v]) => {
-    const b = document.createElement('button'); b.className = 'chip piece'; b.textContent = `${k}. ${v}`;
-    b.onclick = () => { activePiece = k; ph.querySelectorAll('.chip').forEach((c) => c.classList.remove('sel')); b.classList.add('sel'); };
-    ph.appendChild(b);
-  });
-  const quiz = $('boardHost').querySelector('#quiz');
-  const qState = {};
-  const qItems = [
-    { id: 'ol', q: '海洋比陸地', opts: ['多', '少'], ans: '多' },
-    { id: 'co', q: '大洲數目', opts: ['四', '七'], ans: '七' },
-    { id: 'oc', q: '大洋數目', opts: ['四', '七'], ans: '四' },
-    { id: 'lc', q: '最大大洲', opts: ['亞洲', '非洲'], ans: '亞洲' },
-    { id: 'sc', q: '最小大洲', opts: ['南美洲', '大洋洲'], ans: '大洋洲' },
-    { id: 'lo', q: '最大大洋', opts: ['印度洋', '太平洋'], ans: '太平洋' },
-    { id: 'so', q: '最小大洋', opts: ['大西洋', '北冰洋'], ans: '北冰洋' },
-  ];
-  qItems.forEach((item) => {
-    const wrap = document.createElement('div'); wrap.className = 'qi';
-    wrap.innerHTML = `<span>${item.q}</span>`;
-    const row = document.createElement('div'); row.className = 'row';
-    item.opts.forEach((o) => {
-      const b = document.createElement('button'); b.className = 'choice'; b.textContent = o;
-      b.onclick = () => { qState[item.id] = o; row.querySelectorAll('.choice').forEach((c) => c.classList.remove('sel')); b.classList.add('sel'); };
-      row.appendChild(b);
-    });
-    wrap.appendChild(row); quiz.appendChild(wrap);
-  });
-  $('boardHost').querySelector('#chk').onclick = () => {
-    const puzzleOk = placed.every((p, i) => p === answers[i]);
-    const quizOk = qItems.every((q) => qState[q.id] === q.ans);
-    if (puzzleOk && quizOk) completeMission();
-    else failNudge(!puzzleOk ? '拼圖未正確' : '快問有錯');
-  };
+  setBounds(8); player.z = 6;
+  const pos = [[2.2, 0.2], [-0.4, 1.4], [3.8, 2.4], [-3.2, 2.8], [1.0, 3.4]]; // 亞洲 非洲 太平洋 南美洲 印度洋 on floor world map
+  const fm = A.mesh(new THREE.PlaneGeometry(10, 5), new THREE.MeshStandardMaterial({ roughness: 0.6, map: A.canvasTex(1024, 512, (g, w, h) => { g.fillStyle = '#1d5d8f'; g.fillRect(0, 0, w, h); g.fillStyle = '#5fb36a'; [[0.2, 0.3, 0.12, 0.15], [0.47, 0.25, 0.05, 0.08], [0.83, 0.75, 0.06, 0.06], [0.5, 0.92, 0.3, 0.04]].forEach(([x, y, a, b2]) => { g.beginPath(); g.ellipse(x * w, y * h, a * w, b2 * h, 0, 0, 7); g.fill(); }); g.fillStyle = '#fff'; g.font = `700 26px ${A.FONT}`; [['北美洲', 0.16, 0.3], ['歐洲', 0.45, 0.22], ['大洋洲', 0.8, 0.78], ['南極洲', 0.45, 0.97], ['大西洋', 0.32, 0.5], ['北冰洋', 0.45, 0.06]].forEach(([t, x, y]) => g.fillText(t, x * w, y * h)); }) }), 0, 0.02, 2.4);
+  fm.rotation.x = -Math.PI / 2; fm.castShadow = false;
+  const opt = F.earth.puzzleOptions; const items = Object.entries(opt).map(([k, v], i) => ({ id: k, name: `${k}. ${v}`, icon: '🧩', color: '#9b51e0', x: -6 + i * 3, z: 6.6 }));
+  const pads = F.earth.puzzleAnswers.map((ans, i) => ({ name: `缺塊 ${i + 1}`, icon: '❓', x: pos[i][0] - 0.5, z: pos[i][1], want: ans, wrong: '位置不對，看看地圖', color: '#9b51e0', r: 0.55 }));
+  placeTask(items, pads, () => quickQuiz('🌍 快問快答', [{ q: '海洋比陸地', opts: ['多', '少'], ans: '多' }, { q: '最大大洲', opts: ['亞洲', '非洲'], ans: '亞洲' }, { q: '最大大洋', opts: ['印度洋', '太平洋'], ans: '太平洋' }], () => completeMission()), '🌍 把拼塊搬到地上世界地圖的 <b>缺塊</b>');
 }
 
 function buildM11() {
@@ -1121,32 +1005,12 @@ function buildM11() {
   for (let i = 0; i < 6; i++) A.mesh(A.rbox(0.8, 0.5, 0.6, 0.06), new THREE.MeshPhysicalMaterial({ color: 0xbfe6ff, roughness: 0.15, transmission: 0.3, thickness: 0.5 }), 9 + (i % 3) * 0.9, 0.25 + Math.floor(i / 3) * 0.5, 2);
   A.particles(200, 16, 0xffffff, 0.1, 0.8, 7).position.x = 8;
   const div = A.label('沙漠 ⟷ 極地', { icon: '🧭', accent: '#9b51e0', scale: 1.4 }); div.position.set(0, 2.6, -6); worldRoot.add(div);
-  showBoard(`
-    <h2>🏜️ 沙漠 · ❄️ 極地</h2>
-    <p class="tip">沙漠：__ / __ / __　極地：__ / __ / __</p>
-    <div class="row" id="opts"></div>
-    <p class="out">已選：<span id="out"></span></p>
-    <button class="go" id="chk">提交</button>`, true);
-  const correct = ['沙漠', '長袍', '駱駝', '極地', '保暖', '捕魚'];
-  const distractors = ['背心', '馬匹', '散熱', '耕種', '草原', '風扇'];
-  const pool = [...correct, ...distractors].sort(() => Math.random() - 0.5);
-  const picked = [];
-  const opts = $('boardHost').querySelector('#opts');
-  pool.forEach((w) => {
-    const b = document.createElement('button'); b.className = 'chip'; b.textContent = w;
-    b.onclick = () => {
-      if (b.classList.contains('sel')) { b.classList.remove('sel'); picked.splice(picked.indexOf(w), 1); }
-      else if (picked.length < 6) { b.classList.add('sel'); picked.push(w); }
-      $('boardHost').querySelector('#out').textContent = picked.join('、');
-    };
-    opts.appendChild(b);
-  });
-  [['長袍', -3, '🥻'], ['駱駝', -4.5, '🐫'], ['皮毛衣', 3, '🧥'], ['魚', 4.5, '🐟']].forEach(([name, x, ic]) => addTok({ x, z: 2.5, icon: ic, name, color: x < 0 ? '#e0a040' : '#5fb6ff' }, { type: 'flavor', label: name }));
-  setBounds(8);
-  $('boardHost').querySelector('#chk').onclick = () => {
-    if (picked.length === 6 && correct.every((c) => picked.includes(c))) completeMission();
-    else failNudge('沙漠：沙漠長袍駱駝；極地：極地保暖捕魚');
-  };
+  setBounds(8); player.z = 6;
+  const d = spawnPerson('boy2', -5, -3, 1, 0); worldRoot.add(d); colliders.push({ x: -5, z: -3, r: 0.5 });
+  const p = spawnPerson('girl', 5, -3, 1, 0); worldRoot.add(p); colliders.push({ x: 5, z: -3, r: 0.5 });
+  const items = [['robe', '長袍', '🥻'], ['camel', '駱駝', '🐫'], ['vest', '背心', '🎽'], ['horse', '馬匹', '🐎'], ['fur', '保暖皮毛衣', '🧥'], ['fish', '捕魚工具', '🎣'], ['fan', '散熱風扇', '🌀'], ['hoe', '耕種鋤頭', '⛏️']].map(([id, name, icon], i) => ({ id, name, icon, color: i % 2 ? '#e0a040' : '#5fb6ff', x: -7 + (i % 4) * 4.6 / 1 * 0.8 + (i >= 4 ? 7.6 : 0) - 0.4, z: 4.2 - Math.floor((i % 4) / 2) * 0 }));
+  items.forEach((it, i) => { it.x = [-7, -5.5, -4, -2.5, 2.5, 4, 5.5, 7][i]; it.z = 4; });
+  placeTask(items, [{ name: '沙漠穿著', icon: '🏜️', x: -6, z: 0.8, want: 'robe', wrong: '沙漠要防曬防沙' }, { name: '沙漠交通', icon: '🏜️', x: -3.5, z: 0.8, want: 'camel', wrong: '沙漠用甚麼代步？' }, { name: '極地穿著', icon: '❄️', x: 3.5, z: 0.8, want: 'fur', wrong: '極地嚴寒要保暖', color: '#5fb6ff' }, { name: '極地食物', icon: '❄️', x: 6, z: 0.8, want: 'fish', wrong: '極地以甚麼為主食？', color: '#5fb6ff' }], () => completeMission(), '🏜️❄️ 幫兩地居民 <b>選衣食住行</b>');
 }
 
 function buildM12() {
@@ -1163,6 +1027,7 @@ function buildM12() {
   A.mesh(new THREE.BoxGeometry(0.62, 2.3, 0.05), A.pbr('metal009', 1, { metalness: 1, roughness: 0.3 }), 0.32, 1.2, 0.16, lift);
   const no = A.label('升降機', { icon: '⛔', accent: '#eb5757', bg: 'rgba(255,235,235,.95)' }); no.position.set(0, 2.8, 0.2); lift.add(no);
   colliders.push({ x: 3, z: -3, r: 0.9 });
+  const lh = new THREE.Mesh(new THREE.BoxGeometry(1.6, 2.4, 0.4), new THREE.MeshBasicMaterial({ visible: false })); lh.position.set(3, 1.2, -2.6); makeInteractable(lh, { type: 'lift', label: '升降機', onUse: () => failNudge('地震時不要使用升降機！') });
   const open = A.pad({ x: 0, z: 3, name: '空曠安全處', icon: '🏞️', color: '#27ae60', r: 1.3 });
   makeInteractable(open, { type: 'safe', label: '空曠安全處' });
   // cracks, fallen books, dust
@@ -1203,26 +1068,34 @@ function buildM12() {
 
 
 // ===== money / shop / boss =====
-let money = 0, bossOn = false, bossWon = false, boss = null, bossHp = 0, bossCd = 2, shots = [], fireCd = 0, reloadT = 0;
-const GUNS = { water: { name: '💧 水炮槍', dmg: 10, rate: 0.25, range: 18, mag: 12, price: 0, ammoPrice: 0 }, solar: { name: '☀️ 太陽能光槍', dmg: 30, rate: 0.45, range: 40, mag: 8, price: 120, ammoPrice: 20 } };
+let shopOpen = false, money = 0, bossOn = false, bossWon = false, boss = null, bossHp = 0, bossCd = 2, shots = [], fireCd = 0, reloadT = 0;
+const GUNS = {
+  water: { name: '💧 水炮槍', dmg: 10, rate: 0.3, range: 16, mag: 12, price: 0, ammoPrice: 0, col: 0x6fd3ff },
+  pistol: { name: '🔫 淨化手槍', dmg: 22, rate: 0.35, range: 28, mag: 10, price: 100, ammoPrice: 15, col: 0x9be15d },
+  rifle: { name: '🌬️ 風力連發槍', dmg: 12, rate: 0.1, range: 32, mag: 30, price: 180, ammoPrice: 25, col: 0xbfe3ff },
+  solar: { name: '☀️ 太陽能狙擊槍', dmg: 70, rate: 0.9, range: 70, mag: 4, price: 260, ammoPrice: 20, col: 0xffd34d },
+};
 const inv = { water: { mag: 12, res: 999 } }; let gun = 'water';
-const ui = document.createElement('div'); ui.id = 'weap'; ui.style.cssText = 'position:fixed;left:12px;bottom:12px;z-index:6;pointer-events:auto;font-size:16px;display:flex;gap:6px;flex-wrap:wrap;align-items:center';
+const ui = document.createElement('div'); ui.id = 'weap'; ui.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:12px;max-width:calc(100vw - 340px);justify-content:center;z-index:6;pointer-events:auto;font-size:16px;display:flex;gap:6px;flex-wrap:wrap;align-items:center';
 document.body.appendChild(ui);
 function updWeap() {
   const g = GUNS[gun], v = inv[gun];
   ui.innerHTML = `<span class="pill" style="position:static;transform:none" data-testid="money">💰 ${money}</span>`
-    + (bossOn ? `<span class="pill" style="position:static;transform:none" data-testid="ammo">${g.name} ${v.mag}/${v.res}</span><button class="choice" data-testid="fire" id="fireBtn">🔫 射擊</button><button class="choice" data-testid="reload" id="rlBtn">🔄 換彈</button><button class="choice" data-testid="swap" id="swBtn">🔁 換槍</button>` : '')
+    + (bossOn || slimes.length ? `<span class="pill" style="position:static;transform:none" data-testid="ammo">${g.name} ${v.mag}/${v.res}</span><button class="choice" data-testid="fire" id="fireBtn">🔫 射擊</button><button class="choice" data-testid="reload" id="rlBtn">🔄 換彈</button><button class="choice" data-testid="swap" id="swBtn">🔁 換槍</button><button class="choice" data-testid="jump" id="jpBtn">⤴️ 跳</button>` : '')
     + `<button class="choice" data-testid="shop" id="shopBtn">🛒 商店</button>`;
   ui.querySelector('#shopBtn').onclick = openShop;
-  if (bossOn) { ui.querySelector('#fireBtn').onpointerdown = () => fire(); ui.querySelector('#rlBtn').onclick = reload; ui.querySelector('#swBtn').onclick = swap; }
+  if (bossOn || slimes.length) { ui.querySelector('#fireBtn').onpointerdown = () => fire(); ui.querySelector('#rlBtn').onclick = reload; ui.querySelector('#swBtn').onclick = swap; ui.querySelector('#jpBtn').onclick = jump; ui.querySelector('#fireBtn').onpointerup = () => {}; }
 }
 function openShop() {
-  const b = showBoard(`<h2>🛒 武器商店 · 💰 ${money}</h2><div class="row" id="shopRow"></div><button class="go" id="shopClose">關閉</button>`, true);
+  let ov = document.getElementById('shopOv'); if (!ov) { ov = document.createElement('div'); ov.id = 'shopOv'; ov.style.cssText = 'position:fixed;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;background:rgba(5,12,24,.55)'; document.body.appendChild(ov); }
+  shopOpen = true; ov.style.display = 'flex';
+  ov.innerHTML = `<div class="board" style="max-height:86vh;width:min(720px,94vw)"><h2>🛒 武器商店 · 💰 ${money}</h2><p class="tip">傷害／射速／射程／彈匣不同 · 補彈要錢</p><div class="row" id="shopRow"></div><button class="go" id="shopClose">關閉</button></div>`;
+  const b = ov;
   const row = b.querySelector('#shopRow');
   for (const [k, g] of Object.entries(GUNS)) {
     const own = !!inv[k];
     const bt = document.createElement('button'); bt.className = 'choice'; bt.dataset.testid = 'buy-' + k;
-    bt.textContent = own ? `${g.name} 補彈 +${g.mag}（$${g.ammoPrice}）` : `${g.name} 買（$${g.price}）傷害${g.dmg} 射程${g.range}`;
+    bt.textContent = own ? (k === 'water' ? `${g.name} ✅ 無限補彈` : `${g.name} 補彈 +${g.mag}（$${g.ammoPrice}）· 存 ${inv[k].res}`) : `${g.name} $${g.price} · 傷害${g.dmg} 射速${(1 / g.rate).toFixed(1)}/秒 射程${g.range} 彈匣${g.mag}`;
     bt.onclick = () => {
       const cost = own ? g.ammoPrice : g.price; if (money < cost) return failNudge('金錢不足');
       money -= cost; if (own) inv[k].res += g.mag; else { inv[k] = { mag: g.mag, res: g.mag * 2 }; gun = k; }
@@ -1230,29 +1103,33 @@ function openShop() {
     };
     row.appendChild(bt);
   }
-  b.querySelector('#shopClose').onclick = () => { hideBoard(); updWeap(); };
+  b.querySelector('#shopClose').onclick = () => { ov.style.display = 'none'; shopOpen = false; updWeap(); };
 }
 function swap() { const ks = Object.keys(inv); gun = ks[(ks.indexOf(gun) + 1) % ks.length]; updWeap(); }
 function reload() { const g = GUNS[gun], v = inv[gun]; const n = Math.min(g.mag - v.mag, v.res); if (n <= 0) return; v.res -= n; v.mag += n; reloadT = 0.8; toast('🔄', 500); updWeap(); }
 const ray = new THREE.Raycaster();
 function fire() {
-  if (!bossOn || fireCd > 0 || reloadT > 0) return; const g = GUNS[gun], v = inv[gun];
+  if (shopOpen || !(bossOn || slimes.length) || fireCd > 0 || reloadT > 0) return; const g = GUNS[gun], v = inv[gun];
   if (v.mag <= 0) { failNudge('冇子彈！按 R 換彈'); return; }
   v.mag--; fireCd = g.rate; updWeap();
-  ray.setFromCamera({ x: 0, y: 0 }, C); ray.far = g.range;
-  const hit = ray.intersectObject(boss, true)[0];
+  ray.setFromCamera({ x: 0, y: 0 }, C); ray.far = g.range; window.__shots = (window.__shots || 0) + 1;
+  const hit = ray.intersectObjects([...(boss ? [boss] : []), ...slimes.map((q) => q.g), ...cover], true)[0];
   const end = hit ? hit.point : C.position.clone().add(ray.ray.direction.clone().multiplyScalar(g.range));
   const tr = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1, 6), new THREE.MeshBasicMaterial({ color: gun === 'water' ? 0x6fd3ff : 0xffd34d }));
-  const a = C.position.clone().add(new THREE.Vector3(0.2, -0.2, 0)); tr.position.copy(a).lerp(end, 0.5); tr.scale.y = a.distanceTo(end); tr.lookAt(end); tr.rotateX(Math.PI / 2); worldRoot.add(tr); setTimeout(() => worldRoot.remove(tr), 80);
-  if (hit) { bossHp -= g.dmg; toast('💥', 250); boss.scale.setScalar(1.05); setTimeout(() => boss && boss.scale.setScalar(1), 80); setPill(`👾 污染地球怪獸 <b>${Math.max(0, bossHp)} HP</b> · ❤️ ${pHp}`); if (bossHp <= 0) winBoss(); }
+  const a = C.position.clone().add(new THREE.Vector3(0.2, -0.2, 0)); tr.position.copy(a).lerp(end, 0.5); tr.scale.y = a.distanceTo(end); tr.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), end.clone().sub(a).normalize()); worldRoot.add(tr); setTimeout(() => worldRoot.remove(tr), 80);
+  let sl = hit && slimes.find((q) => { let o = hit.object; while (o) { if (o === q.g) return true; o = o.parent; } return false; });
+  if (sl) { sl.hp -= g.dmg; toast('💥', 200); if (sl.hp <= 0) killSlime(sl); return; }
+  if (hit && cover.includes(hit.object)) { window.__blocked = (window.__blocked || 0) + 1; return; }
+  if (hit) { window.__hits = (window.__hits || 0) + 1; bossHp -= g.dmg; toast('💥', 250); boss.scale.setScalar(1.05); setTimeout(() => boss && boss.scale.setScalar(1), 80); setPill(`👾 污染地球怪獸 <b>${Math.max(0, bossHp)} HP</b> · ❤️ ${pHp}`); if (bossHp <= 0) winBoss(); }
 }
 let pHp = 100;
 function startBoss() {
-  clearWorld(); bossOn = true; pHp = 100; bossHp = 600; bossCd = 2.5;
+  clearWorld(); slimes.length = 0; cover.length = 0; shots = []; bossOn = true; bossPhase = 1; missionTimerOn = false; pHp = 100; bossHp = 900; bossCd = 2.5; ringCd = 6;
   A.outdoor({ elev: 12, azim: 200, turb: 12, rayleigh: 3, fog: 0x8a7a5a, near: 20, far: 90, sunC: 0xffa060, expo: 0.55 });
   A.ground('ground054', 80, 20);
   for (let i = 0; i < 14; i++) A.tree((Math.random() - 0.5) * 40, -14 - Math.random() * 10, 1.2, { bare: true });
-  for (const [x, z] of [[-4, -1], [4, -1], [0, 3]]) { A.mesh(new THREE.CylinderGeometry(0.6, 0.7, 2, 16), A.pbr('concrete034', 1), x, 1, z); colliders.push({ x, z, r: 0.9 }); }
+  for (const [x, z] of [[-4, -1], [4, -1], [0, 3]]) { cover.push(A.mesh(new THREE.CylinderGeometry(0.6, 0.7, 2, 16), A.pbr('concrete034', 1), x, 1, z)); colliders.push({ x, z, r: 0.9 }); }
+  const crate = A.token({ x: 8, z: 6, icon: '📦', name: '彈藥箱', color: '#f2c94c' }); makeInteractable(crate, { type: 'ammo', label: '彈藥箱 +補彈', onUse: () => { inv[gun].res += GUNS[gun].mag; crate.userData.spent = true; crate.visible = false; toast('📦'); updWeap(); setTimeout(() => { crate.visible = true; crate.userData.spent = false; }, 20000); } });
   boss = new THREE.Group(); boss.position.set(0, 0, -9);
   const body = A.mesh(new THREE.SphereGeometry(2, 32, 24), new THREE.MeshPhysicalMaterial({ color: 0x4b3d5c, roughness: 0.3, clearcoat: 1, emissive: 0x1a3010 }), 0, 2.2, 0, boss); body.scale.y = 0.85;
   for (const s of [-1, 1]) { A.mesh(new THREE.SphereGeometry(0.35, 16, 12), A.std(0xffff66, 0.2, 0, { emissive: 0xffee00, emissiveIntensity: 2 }), s * 0.7, 2.9, 1.7, boss); A.mesh(new THREE.CylinderGeometry(0.35, 0.45, 2.2, 12), A.std(0x8a3b2a, 0.7), s * 1.2, 4, -0.4, boss); }
@@ -1267,26 +1144,58 @@ function bossTick(dt) {
   fireCd -= dt; if (reloadT > 0) reloadT -= dt;
   if (!boss) return;
   const dx = player.x - boss.position.x, dz = player.z - boss.position.z, d = Math.hypot(dx, dz);
-  boss.rotation.y = Math.atan2(dx, dz); const sp = bossHp < 300 ? 2.2 : 1.3;
+  boss.rotation.y = Math.atan2(dx, dz); const sp = bossHp < 300 ? 2.2 : 1.3; boss.children[0].material.emissive.setHex(bossHp < 300 ? 0x5a1010 : 0x1a3010);
+  const ph = bossHp > 600 ? 1 : bossHp > 300 ? 2 : 3;
+  if (ph !== bossPhase) { bossPhase = ph; toast(ph === 2 ? '😡' : '🔥', 1200); hint(ph === 2 ? '第二階段：小污染怪出現！' : '第三階段：衝擊波！按空格跳起'); if (ph === 2) spawnSlimes(3, null, boss.position); shake = 0.8; setTimeout(() => (shake = 0), 600); }
+  if (bossPhase === 3) { ringCd -= dt; if (ringCd <= 0) { ringCd = 4.5; const r = A.mesh(new THREE.TorusGeometry(1, 0.15, 8, 48), A.std(0x7aff3a, 0.4, 0, { emissive: 0x3a9a10, emissiveIntensity: 2 }), boss.position.x, 0.25, boss.position.z); r.rotation.x = Math.PI / 2; rings.push({ r, rad: 1, hit: false }); } }
+  for (const q of rings) { q.rad += dt * 7; q.r.scale.setScalar(q.rad); if (!q.hit && Math.abs(Math.hypot(player.x - q.r.position.x, player.z - q.r.position.z) - q.rad) < 0.6 && jumpH < 0.35) { q.hit = true; hurt(15); } }
+  rings = rings.filter((q) => (q.rad > 20 ? (worldRoot.remove(q.r), false) : true));
   if (d > 6) { boss.position.x += (dx / d) * sp * dt; boss.position.z += (dz / d) * sp * dt; }
   boss.position.y = Math.abs(Math.sin(clock.elapsedTime * 3)) * 0.3;
   if (d < 3.2) hurt(25 * dt);
   bossCd -= dt;
-  if (bossCd <= 0) { bossCd = bossHp < 300 ? 1.2 : 2.2; const b = A.mesh(new THREE.SphereGeometry(0.35, 12, 8), A.std(0x6aff3a, 0.4, 0, { emissive: 0x2a8a10 }), boss.position.x, 2.4, boss.position.z); const v = new THREE.Vector3(dx, 0, dz).normalize().multiplyScalar(9); shots.push({ b, v, t: 0 }); }
+  if (bossCd <= 0) { bossCd = bossHp < 300 ? 1.3 : bossHp < 600 ? 1.8 : 2.4; const b = A.mesh(new THREE.SphereGeometry(0.35, 12, 8), A.std(0x6aff3a, 0.4, 0, { emissive: 0x2a8a10 }), boss.position.x, 2.4, boss.position.z); const v = new THREE.Vector3(dx, 0, dz).normalize().multiplyScalar(9); shots.push({ b, v, t: 0 }); }
   for (const s of shots) { s.t += dt; s.b.position.addScaledVector(s.v, dt); s.b.position.y = Math.max(0.5, 2.4 - s.t * 0.9); if (s.b.position.distanceTo(new THREE.Vector3(player.x, 1, player.z)) < 0.9) { hurt(15); s.t = 99; } }
   shots = shots.filter((s) => { if (s.t > 4) { worldRoot.remove(s.b); return false; } return true; });
   if (keys['KeyF'] || mouseFire) fire();
 }
+let bossPhase = 1, ringCd = 6, rings = [], jumpH = 0, jumpV = 0; const cover = [];
+const slimes = []; let slimeDone = null;
+function spawnSlimes(n, done, near) {
+  slimeDone = done; fireCd = 0;
+  for (let i = 0; i < n; i++) {
+    const g = new THREE.Group(); const a = (i / n) * Math.PI * 2;
+    const cx = near ? near.x : player.x, cz = near ? near.z : player.z - 1;
+    g.position.set(Math.max(-bounds + 1, Math.min(bounds - 1, cx + Math.sin(a) * 4.5)), 0, Math.max(-bounds + 1, Math.min(bounds - 1, cz - Math.cos(a) * 4.5 - 1)));
+    const b = A.mesh(new THREE.SphereGeometry(0.45, 24, 16), new THREE.MeshPhysicalMaterial({ color: 0x5a4a6e, roughness: 0.3, clearcoat: 1, emissive: 0x1a3010 }), 0, 0.45, 0, g); b.scale.y = 0.8;
+    for (const sx of [-1, 1]) A.mesh(new THREE.SphereGeometry(0.09, 10, 8), A.std(0xffff88, 0.2, 0, { emissive: 0xffee00 }), sx * 0.16, 0.6, 0.36, g);
+    worldRoot.add(g); slimes.push({ g, hp: 40, cd: 1 });
+  }
+  if (!bossOn) { setPill(`👾 清除污染怪 <b>${slimes.length}</b> · 點擊／🔫 射擊`); hint('射擊污染怪！R 換彈 · 🛒 買武器'); }
+  updWeap();
+}
+function killSlime(q) { worldRoot.remove(q.g); slimes.splice(slimes.indexOf(q), 1); money += 8; toast('💰', 400); updWeap();
+  if (!bossOn) setPill(`👾 清除污染怪 <b>${slimes.length}</b>`);
+  if (!slimes.length && slimeDone) { const f = slimeDone; slimeDone = null; pHp = 100; setTimeout(f, 600); updWeap(); } }
+function slimeTick(dt) {
+  for (const q of slimes) { const dx = player.x - q.g.position.x, dz = player.z - q.g.position.z, d = Math.hypot(dx, dz) || 1;
+    q.g.rotation.y = Math.atan2(dx, dz); q.g.children[0].scale.y = 0.8 + Math.sin(clock.elapsedTime * 8 + d) * 0.08;
+    if (d > 1.2) { const nx = q.g.position.x + (dx / d) * 1.4 * dt, nz = q.g.position.z + (dz / d) * 1.4 * dt; q.g.position.x = nx; q.g.position.z = nz; }
+    q.cd -= dt; if (d < 1.4 && q.cd <= 0) { q.cd = 1.2; hurt(6); } }
+}
+function jump() { if (jumpH <= 0.001) jumpV = 5.2; }
+addEventListener('keydown', (e) => { if (e.code === 'Space' && (bossOn || slimes.length)) jump(); });
 let mouseFire = false;
-R.domElement.addEventListener('mousedown', (e) => { if (bossOn && e.button === 0) { mouseFire = true; fire(); } });
+R.domElement.addEventListener('mousedown', (e) => { if ((bossOn || slimes.length) && e.button === 0) { mouseFire = true; fire(); } });
 addEventListener('mouseup', () => { mouseFire = false; });
-addEventListener('keydown', (e) => { if (!bossOn) return; if (e.code === 'KeyR') reload(); if (e.code === 'KeyQ') swap(); });
+addEventListener('keydown', (e) => { if (!(bossOn || slimes.length)) return; if (e.code === 'KeyR') reload(); if (e.code === 'KeyQ') swap(); });
 function hurt(n) {
   pHp = Math.max(0, Math.round(pHp - n)); setPill(`👾 污染地球怪獸 <b>${Math.max(0, bossHp)} HP</b> · ❤️ ${pHp}`); shake = 0.4; setTimeout(() => (shake = 0), 200);
-  if (pHp <= 0) { bossOn = false; const b = showBoard(`<h2>😵 被污染擊倒</h2><p class="tip">去商店補彈或買新武器，再挑戰！</p><button class="go" data-testid="retry" id="retry">🔁 重試 Boss</button>`, true); b.querySelector('#retry').onclick = () => { inv.water.mag = 12; startBoss(); }; }
+  if (pHp <= 0 && !bossOn && slimes.length) { pHp = 100; const n = slimes.length; slimes.forEach((q) => worldRoot.remove(q.g)); slimes.length = 0; failNudge('被擊倒！再試一次'); spawnSlimes(n, slimeDone); return; }
+  if (pHp <= 0 && bossOn) { bossOn = false; const b = showBoard(`<h2>😵 被污染擊倒</h2><p class="tip">去商店補彈或買新武器，再挑戰！</p><button class="go" data-testid="retry" id="retry">🔁 重試 Boss</button>`, true); b.querySelector('#retry').onclick = () => { inv.water.mag = 12; startBoss(); }; }
 }
 function winBoss() { bossOn = false; bossWon = true; worldRoot.remove(boss); boss = null; money += 200; score += 500; toast('🏆', 1500); setTimeout(endGame, 1200); }
-window.__BOSS = { start: startBoss, give(n) { money += n; updWeap(); }, get s() { return { bossOn, bossHp, pHp, money, gun, inv: JSON.parse(JSON.stringify(inv)) }; } };
+window.__BOSS = { get slimes() { return slimes.map((q) => ({ x: q.g.position.x, z: q.g.position.z, hp: q.hp })); }, get boss() { return boss ? { x: boss.position.x, z: boss.position.z, phase: bossPhase } : null; }, start: startBoss, give(n) { money += n; updWeap(); }, get s() { return { bossOn, bossHp, pHp, money, gun, jumpH, shots: window.__shots || 0, hits: window.__hits || 0, blocked: window.__blocked || 0, inv: JSON.parse(JSON.stringify(inv)) }; } };
 updWeap();
 
 // ---- interaction ----
@@ -1296,6 +1205,7 @@ function tryInteract() {
   const data = m.userData.interact;
   if (data.onUse) return data.onUse();
   if (data.type === 'pickup') {
+    if (held) { const prev = interactables.find((o) => o.userData.interact?.id === held.id && o.userData.interact.type === 'pickup'); if (prev) { prev.visible = true; prev.userData.spent = false; } }
     held = { id: data.id, label: data.label };
     m.visible = false; m.userData.spent = true;
     toast('✋'); updateHeldHud();
@@ -1342,8 +1252,13 @@ function adapt(dt) {
 }
 function loop() {
   const dt = Math.min(0.05, clock.getDelta());
-  if (running && !boardModal) movePlayer(dt);
-  if (running && bossOn) bossTick(dt);
+  if (running && !boardModal && !shopOpen) movePlayer(dt);
+  if (running && bossOn && !shopOpen) bossTick(dt);
+  else if (running && slimes.length) { fireCd -= dt; if (reloadT > 0) reloadT -= dt; if (keys['KeyF'] || mouseFire) fire(); }
+  if (running && slimes.length) slimeTick(dt);
+  if (jumpV || jumpH > 0) { jumpV -= 14 * dt; jumpH = Math.max(0, jumpH + jumpV * dt); if (jumpH === 0) jumpV = 0; }
+  C.position.y = player.y + jumpH;
+  if (running) setStats();
   if (running && missionTimerOn) {
     missionTimeLeft -= dt;
     if (missionTimeLeft <= 0) {
@@ -1391,7 +1306,7 @@ $('go').onclick = async () => {
   await loadModels();
   titleSpin = null;
   document.body.classList.add('playing');
-  running = true;
+  running = true; window.__t0 = performance.now();
   if (TOUCH) $('joy').style.display = 'block';
   $('act').style.display = 'block';
   startMission(0);
@@ -1406,7 +1321,7 @@ window.__GAME = {
   },
   jumpTo(i) { startMission(i); },
   view(x, y, z, yaw = 0, pitch = 0) { Object.assign(player, { x, y, z, yaw, pitch }); },
-  get targets() { return interactables.filter((m) => m.visible && !m.userData.spent).map((m) => { const p = m.getWorldPosition(new THREE.Vector3()); return { x: p.x, z: p.z, type: m.userData.interact.type, id: m.userData.interact.id, label: m.userData.interact.label }; }); },
+  get targets() { return interactables.filter((m) => m.visible && !m.userData.spent).map((m) => { const p = m.getWorldPosition(new THREE.Vector3()); return { x: p.x, z: p.z, type: m.userData.interact.type, id: m.userData.interact.id, label: m.userData.interact.label, want: m.userData.interact.want }; }); },
   get quality() { return { pixelRatio, low: A.Q.low }; },
 };
 
