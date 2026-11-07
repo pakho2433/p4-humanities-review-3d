@@ -1131,11 +1131,11 @@ function fire() {
   let sl = hit && slimes.find((q) => { let o = hit.object; while (o) { if (o === q.g) return true; o = o.parent; } return false; });
   if (sl) { sl.hp -= g.dmg; toast('💥', 200); if (sl.hp <= 0) killSlime(sl); return; }
   if (hit && cover.includes(hit.object)) { window.__blocked = (window.__blocked || 0) + 1; return; }
-  if (hit) { window.__hits = (window.__hits || 0) + 1; bossHp -= g.dmg; toast('💥', 250); boss.scale.setScalar(1.05); setTimeout(() => boss && boss.scale.setScalar(1), 80); setPill(`👾 污染地球怪獸 <b>${Math.max(0, bossHp)} HP</b> · ❤️ ${pHp}`); if (bossHp <= 0) winBoss(); }
+  if (hit) { window.__hits = (window.__hits || 0) + 1; bossHp -= g.dmg; toast('💥', 250); boss.scale.setScalar(1.05); setTimeout(() => boss && boss.scale.setScalar(1), 80); setPill(`👾 污染地球怪獸 <b>${Math.max(0, bossHp)} HP</b> · ❤️ ${Math.ceil(pHp)}`); if (bossHp <= 0) winBoss(); }
 }
 let pHp = 100;
 function startBoss() {
-  clearWorld(); slimes.length = 0; cover.length = 0; shots = []; bossOn = true; bossPhase = 1; missionTimerOn = false; pHp = 100; bossHp = 900; bossCd = 2.5; ringCd = 6;
+  clearWorld(); slimes.length = 0; cover.length = 0; shots = []; rings = []; jumpH = 0; jumpV = 0; fireCd = 0; reloadT = 0; mouseFire = false; bossOn = true; bossPhase = 1; missionTimerOn = false; pHp = 100; bossHp = 900; bossCd = 2.5; ringCd = 6;
   A.outdoor({ elev: 12, azim: 200, turb: 12, rayleigh: 3, fog: 0x8a7a5a, near: 20, far: 90, sunC: 0xffa060, expo: 0.55 });
   A.ground('ground054', 80, 20);
   for (let i = 0; i < 14; i++) A.tree((Math.random() - 0.5) * 40, -14 - Math.random() * 10, 1.2, { bare: true });
@@ -1148,7 +1148,7 @@ function startBoss() {
   const smoke = A.particles(120, 3, 0x555555, 0.3, -0.8, 6); boss.add(smoke); smoke.position.y = 4;
   worldRoot.add(boss);
   setBounds(14); player.x = 0; player.z = 8; player.yaw = 0; player.pitch = 0.1;
-  setPill(`👾 污染地球怪獸 <b>${bossHp} HP</b> · ❤️ ${pHp}`); hint('點擊／🔫 射擊 · R 換彈 · Q 換槍 · 躲開污泥球');
+  setPill(`👾 污染地球怪獸 <b>${bossHp} HP</b> · ❤️ ${Math.ceil(pHp)}`); hint('點擊／🔫 射擊 · R 換彈 · Q 換槍 · 躲開污泥球');
   updWeap();
 }
 function bossTick(dt) {
@@ -1201,11 +1201,11 @@ R.domElement.addEventListener('mousedown', (e) => { if ((bossOn || slimes.length
 addEventListener('mouseup', () => { mouseFire = false; });
 addEventListener('keydown', (e) => { if (!(bossOn || slimes.length)) return; if (e.code === 'KeyR') reload(); if (e.code === 'KeyQ') swap(); });
 function hurt(n) {
-  pHp = Math.max(0, Math.round(pHp - n)); setPill(`👾 污染地球怪獸 <b>${Math.max(0, bossHp)} HP</b> · ❤️ ${pHp}`); shake = 0.4; setTimeout(() => (shake = 0), 200);
+  pHp = Math.max(0, pHp - n); setPill(`👾 污染地球怪獸 <b>${Math.max(0, bossHp)} HP</b> · ❤️ ${Math.ceil(pHp)}`); shake = 0.4; setTimeout(() => (shake = 0), 200);
   if (pHp <= 0 && !bossOn && slimes.length) { pHp = 100; const n = slimes.length; slimes.forEach((q) => worldRoot.remove(q.g)); slimes.length = 0; failNudge('被擊倒！再試一次'); spawnSlimes(n, slimeDone); return; }
   if (pHp <= 0 && bossOn) { bossOn = false; const b = showBoard(`<h2>😵 被污染擊倒</h2><p class="tip">去商店補彈或買新武器，再挑戰！</p><button class="go" data-testid="retry" id="retry">🔁 重試 Boss</button>`, true); b.querySelector('#retry').onclick = () => { inv.water.mag = 12; startBoss(); }; }
 }
-function winBoss() { bossOn = false; bossWon = true; worldRoot.remove(boss); boss = null; money += 200; score += 500; toast('🏆', 1500); setTimeout(endGame, 1200); }
+function winBoss() { slimes.forEach((q) => worldRoot.remove(q.g)); slimes.length = 0; bossOn = false; bossWon = true; worldRoot.remove(boss); boss = null; money += 200; score += 500; toast('🏆', 1500); setTimeout(endGame, 1200); }
 window.__BOSS = { get slimes() { return slimes.map((q) => ({ x: q.g.position.x, z: q.g.position.z, hp: q.hp })); }, get boss() { return boss ? { x: boss.position.x, z: boss.position.z, phase: bossPhase } : null; }, start: startBoss, give(n) { money += n; updWeap(); }, get s() { return { shopOpen, fireCd: +fireCd.toFixed(2), reloadT, bossOn, bossHp, pHp, money, gun, jumpH, shots: window.__shots || 0, hits: window.__hits || 0, blocked: window.__blocked || 0, inv: JSON.parse(JSON.stringify(inv)) }; } };
 updWeap();
 
@@ -1265,8 +1265,8 @@ function loop() {
   const dt = Math.min(0.05, clock.getDelta());
   if (running && !boardModal && !shopOpen) movePlayer(dt);
   if (running && bossOn && !shopOpen) bossTick(dt);
-  else if (running && slimes.length) { fireCd -= dt; if (reloadT > 0) reloadT -= dt; if (keys['KeyF'] || mouseFire) fire(); }
-  if (running && slimes.length) slimeTick(dt);
+  else if (running && slimes.length && !shopOpen && !boardModal) { fireCd -= dt; if (reloadT > 0) reloadT -= dt; if (keys['KeyF'] || mouseFire) fire(); }
+  if (running && slimes.length && !shopOpen && !boardModal) slimeTick(dt);
   if (jumpV || jumpH > 0) { jumpV -= 14 * dt; jumpH = Math.max(0, jumpH + jumpV * dt); if (jumpH === 0) jumpV = 0; }
   C.position.y = player.y + jumpH;
   if (running) setStats();

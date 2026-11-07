@@ -1,0 +1,95 @@
+{
+  "start10": {
+    "errors": [],
+    "wrongTried": true,
+    "boss": {
+      "shopOpen": false,
+      "fireCd": 0.3,
+      "reloadT": -0.0075999999996275575,
+      "bossOn": false,
+      "bossHp": 0,
+      "pHp": 37.07999999998137,
+      "money": 224,
+      "gun": "water",
+      "jumpH": 0,
+      "shots": 120,
+      "hits": 72,
+      "blocked": 18,
+      "inv": {
+        "water": {
+          "mag": 6,
+          "res": 915
+        },
+        "pistol": {
+          "mag": 0,
+          "res": 0
+        }
+      }
+    },
+    "done": 2,
+    "end": "\n  \n    考察完成\n    ⭐\n    895總分\n    完成 2 / 12 個任務\n    \n      🗺️ 小小考察隊\n      ⛰️ 漫遊香港\n      🌦️ 香港的氣候\n      🌍 發現地球\n    \n    🔁 再玩\n  \n",
+    "wallSec": 394.895
+  },
+  "start11": {
+    "errors": [],
+    "wrongTried": false,
+    "boss": {
+      "shopOpen": false,
+      "fireCd": 0.3,
+      "reloadT": -0.010500000000000079,
+      "bossOn": false,
+      "bossHp": 0,
+      "pHp": 30.014999999990692,
+      "money": 264,
+      "gun": "water",
+      "jumpH": 0,
+      "shots": 172,
+      "hits": 90,
+      "blocked": 33,
+      "inv": {
+        "water": {
+          "mag": 8,
+          "res": 831
+        }
+      }
+    },
+    "done": 1,
+    "end": "\n  \n    考察完成\n    ⭐\n    695總分\n    完成 1 / 12 個任務\n    \n      🗺️ 小小考察隊\n      ⛰️ 漫遊香港\n      🌦️ 香港的氣候\n      🌍 發現地球\n    \n    🔁 再玩\n  \n",
+    "wallSec": 288.098
+  },
+  "ipad": {
+    "ipad_land": {
+      "errs": [],
+      "moved": 1.89,
+      "yawChange": 0.48,
+      "ammoAfterTapFire": [
+        10,
+        6
+      ],
+      "afterReload": 10,
+      "jumpH": 0.41500000000000004,
+      "swappedTo": "water",
+      "overlap": {
+        "barAct": false,
+        "barJoy": false
+      }
+    },
+    "ipad_port": {
+      "errs": [],
+      "moved": 1.89,
+      "yawChange": 0.48,
+      "ammoAfterTapFire": [
+        10,
+        6
+      ],
+      "afterReload": 10,
+      "jumpH": 0.41500000000000004,
+      "swappedTo": "water",
+      "overlap": {
+        "barAct": false,
+        "barJoy": false
+      }
+    }
+  },
+  "combatRegressions": "PASS fractional damage, retry cleanup, shop enemy pause, victory cleanup; page errors: 0"
+}

@@ -1,10 +1,11 @@
 // Full new-game playthrough with real input (keyboard/mouse/clicks). __GAME/__BOSS read only for navigation.
 import { chromium } from 'playwright';
+import assert from 'node:assert/strict';
 const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 const page = await browser.newPage({ viewport: { width: 1024, height: 640 } });
 const errors = []; page.on('pageerror', (e) => errors.push(String(e)));
 const T0 = Date.now(); const log = (...a) => console.log(((Date.now() - T0) / 1000).toFixed(0) + 's', ...a);
-await page.goto('http://127.0.0.1:8765/');
+await page.goto(process.env.BASE_URL || 'http://127.0.0.1:8765/');
 await page.waitForFunction(() => document.body.classList.contains('ready'), null, { timeout: 120000 });
 await page.screenshot({ path: 'previews/v3_title.png' });
 await page.click('[data-testid="start"]');
@@ -27,7 +28,7 @@ async function turnTo(x, z, y = null) {
     const p = (await st()).player;
     const want = Math.atan2(-(x - p.x), -(z - p.z));
     let d = want - p.yaw; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
-    const wp = y === null ? 0 : Math.atan2(y - p.y, Math.hypot(x - p.x, z - p.z));
+    const wp = y === null ? 0 : Math.atan2(y - p.y - (await bs()).jumpH, Math.hypot(x - p.x, z - p.z));
     if (Math.abs(d) < 0.04 && Math.abs(wp - p.pitch) < 0.05) return;
     await look(d, wp - p.pitch);
   }
@@ -167,24 +168,43 @@ await shot('boss_start');
 { for (let k = 0; k < 30; k++) { const b = await page.evaluate(() => window.__BOSS.boss); await turnTo(b.x, b.z); await page.keyboard.down('KeyW'); await wait(500); await page.keyboard.up('KeyW'); if ((await bs()).pHp <= 0) break; } }
 await page.waitForSelector('[data-testid="retry"]', { timeout: 30000 }); await shot('boss_lose'); log('lost', JSON.stringify(await bs()));
 await page.click('[data-testid="retry"]'); await wait(800);
-// win
+// win: circle the arena with real movement input, avoiding incoming shots.
+const moveKeys = ['KeyW', 'KeyA', 'KeyS', 'KeyD'];
+async function stopMoving() { for (const key of moveKeys) await page.keyboard.up(key); }
 let jumped = false, lastPh = 1;
 for (let k = 0; k < 1500; k++) {
-  const s = await bs(); if (!s.bossOn) break;
+  const s = await bs();
+  if (!s.bossOn) {
+    if (s.pHp <= 0) { await stopMoving(); await page.click('[data-testid="retry"]'); await wait(600); continue; }
+    break;
+  }
   const b = await page.evaluate(() => window.__BOSS.boss); if (!b) break;
   const sl = await page.evaluate(() => window.__BOSS.slimes);
   const p = (await st()).player;
-  const tgt = sl.length && Math.hypot(sl[0].x - p.x, sl[0].z - p.z) < 6 ? { x: sl[0].x, z: sl[0].z, y: 0.5 } : { x: b.x, z: b.z, y: 2.3 };
+  sl.sort((a, b) => Math.hypot(a.x - p.x, a.z - p.z) - Math.hypot(b.x - p.x, b.z - p.z));
+  const tgt = sl.length ? { x: sl[0].x, z: sl[0].z, y: 0.5 } : { x: b.x, z: b.z, y: 2.3 };
   await turnTo(tgt.x, tgt.z, tgt.y);
+  const q = (await st()).player, radius = Math.hypot(q.x, q.z) || 1;
+  const vx = -q.z / radius - q.x / radius * (radius - 9) * 0.7;
+  const vz = q.x / radius - q.z / radius * (radius - 9) * 0.7;
+  const forward = -Math.sin(q.yaw) * vx - Math.cos(q.yaw) * vz;
+  const right = Math.cos(q.yaw) * vx - Math.sin(q.yaw) * vz;
+  for (const [key, value] of [['KeyW', forward], ['KeyS', -forward], ['KeyD', right], ['KeyA', -right]]) {
+    if (value > 0.3) await page.keyboard.down(key); else await page.keyboard.up(key);
+  }
   await page.mouse.move(512, 320); await page.mouse.down(); await wait(150); await page.mouse.up();
-  if (k % 5 === 0) { await page.keyboard.press('Space'); jumped ||= (await bs()).jumpH > 0; }
-  if (k % 9 === 0) { await page.keyboard.down('KeyA'); await wait(250); await page.keyboard.up('KeyA'); }
+  if (b.phase === 3 && k % 5 === 0) { await page.keyboard.press('Space'); await wait(80); jumped ||= (await bs()).jumpH > 0; }
+  if (k % 100 === 0) log('fight', k, JSON.stringify(await bs()));
   const g = s.inv[s.gun]; if (g.mag === 0) await page.keyboard.press(g.res > 0 ? 'KeyR' : 'KeyQ');
   const ph = b.phase; if (ph !== lastPh) { lastPh = ph; await shot('boss_phase' + ph); log('phase', ph, JSON.stringify(s)); }
-  if (s.pHp <= 0 || await page.locator('[data-testid="retry"]').count()) { log('died, retry', JSON.stringify(s)); await page.click('[data-testid="retry"]'); await wait(600); }
+  if (s.pHp <= 0 || await page.locator('[data-testid="retry"]').count()) { log('died, retry', JSON.stringify(s)); await stopMoving(); await page.click('[data-testid="retry"]'); await wait(600); }
 }
+await stopMoving();
 log('jumped', jumped);
 await page.waitForSelector('#end:not(.hide)', { timeout: 30000 }); await wait(800); await shot('win');
 const final = await st();
 console.log(JSON.stringify({ errors, wrongTried, boss: await bs(), done: final.missionDone.filter(Boolean).length, end: await page.textContent('#end'), wallSec: (Date.now() - T0) / 1000 }));
+assert.deepEqual(errors, [], 'no page errors');
+assert.equal(final.missionDone.filter(Boolean).length, 12 - START, 'only played missions count');
+assert.equal((await bs()).bossHp <= 0, true, 'boss defeated');
 await browser.close();
