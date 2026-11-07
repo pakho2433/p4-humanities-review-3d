@@ -133,7 +133,7 @@ await fightSlimes('fight_m8');
 if (START <= 8) {
 await waitMission(8); log('M9', JSON.stringify(await bs()));
 await shop(['solar', 'rifle']);
-for (const id of ['coat', 'drink']) { await pick(id); const e = (await targets()).find((t) => t.type === 'elder'); await interact(e.x, e.z, 1.5); }
+for (const id of ['coat', 'drink']) { await pick(id); log('M9 held', JSON.stringify((await st()).held), JSON.stringify((await st()).player)); const e = (await targets()).find((t) => t.type === 'elder'); for (let r = 0; r < 4 && (await st()).held; r++) { if ((await st()).held.id !== id) await pick(id); await walkTo(e.x, e.z + 1.6, 0.4); await interact(e.x, e.z, 1.5); } log('M9 pill', await page.textContent('#missionPill')); }
 await page.locator('#why .choice', { hasText: '血壓變高' }).click(); await page.locator('#why .choice', { hasText: '肌肉和關節' }).click(); await page.click('#chk');
 // M10
 }

@@ -88,3 +88,5 @@ body.playing #hud{opacity:1}
   #joy{bottom:calc(34vh + 26px)}
   .pill small{display:none}
 }
+
+body.boardup #weap{bottom:auto!important;top:max(110px,calc(env(safe-area-inset-top) + 100px));left:max(12px,env(safe-area-inset-left))!important;transform:none!important;max-width:60vw!important;justify-content:flex-start!important}

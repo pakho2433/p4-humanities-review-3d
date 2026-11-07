@@ -206,7 +206,7 @@ function joyPos(cx, cy) {
 }
 addEventListener('touchstart', (e) => {
   for (const t of e.changedTouches) {
-    if (t.target.closest?.('.board,#act,.ov')) continue;
+    if (t.target.closest?.('.board,#act,.ov,#weap,#shopOv')) continue;
     if (t.clientX < innerWidth * 0.45) { joy.active = t.identifier; joyPos(t.clientX, t.clientY); }
     else if (!boardModal && !t.target.closest?.('.board')) lookDrag = { id: t.identifier, x: t.clientX, y: t.clientY };
   }
@@ -321,13 +321,13 @@ function refreshProgress() {
 }
 
 function hideBoard() {
-  boardOpen = false; boardModal = false;
+  boardOpen = false; boardModal = false; document.body.classList.remove('boardup');
   const h = $('boardHost');
   h.classList.remove('show', 'modal');
   h.innerHTML = '';
 }
 function showBoard(html, modal = false) {
-  boardOpen = true; boardModal = !!modal;
+  boardOpen = true; boardModal = !!modal; document.body.classList.add('boardup');
   const h = $('boardHost');
   h.classList.add('show');
   h.classList.toggle('modal', !!modal);
@@ -1078,13 +1078,24 @@ const GUNS = {
 const inv = { water: { mag: 12, res: 999 } }; let gun = 'water';
 const ui = document.createElement('div'); ui.id = 'weap'; ui.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:12px;max-width:calc(100vw - 340px);justify-content:center;z-index:6;pointer-events:auto;font-size:16px;display:flex;gap:6px;flex-wrap:wrap;align-items:center';
 document.body.appendChild(ui);
+let uiMode = null;
 function updWeap() {
-  const g = GUNS[gun], v = inv[gun];
-  ui.innerHTML = `<span class="pill" style="position:static;transform:none" data-testid="money">💰 ${money}</span>`
-    + (bossOn || slimes.length ? `<span class="pill" style="position:static;transform:none" data-testid="ammo">${g.name} ${v.mag}/${v.res}</span><button class="choice" data-testid="fire" id="fireBtn">🔫 射擊</button><button class="choice" data-testid="reload" id="rlBtn">🔄 換彈</button><button class="choice" data-testid="swap" id="swBtn">🔁 換槍</button><button class="choice" data-testid="jump" id="jpBtn">⤴️ 跳</button>` : '')
-    + `<button class="choice" data-testid="shop" id="shopBtn">🛒 商店</button>`;
-  ui.querySelector('#shopBtn').onclick = openShop;
-  if (bossOn || slimes.length) { ui.querySelector('#fireBtn').onpointerdown = () => fire(); ui.querySelector('#rlBtn').onclick = reload; ui.querySelector('#swBtn').onclick = swap; ui.querySelector('#jpBtn').onclick = jump; ui.querySelector('#fireBtn').onpointerup = () => {}; }
+  const g = GUNS[gun], v = inv[gun]; const mode = bossOn || slimes.length ? 'fight' : 'calm';
+  if (mode !== uiMode) {
+    uiMode = mode;
+    ui.innerHTML = `<span class="pill" data-testid="money" id="moneyP" style="position:static;transform:none;width:96px;justify-content:center"></span>`
+      + (mode === 'fight' ? `<span class="pill" style="position:static;transform:none;width:230px;justify-content:center;font-variant-numeric:tabular-nums" data-testid="ammo" id="ammoP"></span><button class="choice" data-testid="fire" id="fireBtn">🔫 射擊</button><button class="choice" data-testid="reload" id="rlBtn">🔄 換彈</button><button class="choice" data-testid="swap" id="swBtn">🔁 換槍</button><button class="choice" data-testid="jump" id="jpBtn">⤴️ 跳</button>` : '')
+      + `<button class="choice" data-testid="shop" id="shopBtn">🛒 商店</button>`;
+    ui.querySelector('#shopBtn').onclick = openShop;
+    if (mode === 'fight') {
+      const fb = ui.querySelector('#fireBtn');
+      fb.addEventListener('pointerdown', (e) => { e.preventDefault(); mouseFire = true; fire(); });
+      for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) fb.addEventListener(ev, () => { mouseFire = false; });
+      ui.querySelector('#rlBtn').onclick = reload; ui.querySelector('#swBtn').onclick = swap; ui.querySelector('#jpBtn').onclick = jump;
+    }
+  }
+  ui.querySelector('#moneyP').textContent = `💰 ${money}`;
+  const ap = ui.querySelector('#ammoP'); if (ap) ap.textContent = `${g.name} ${v.mag}/${v.res}${reloadT > 0 ? ' 🔄' : ''}`;
 }
 function openShop() {
   let ov = document.getElementById('shopOv'); if (!ov) { ov = document.createElement('div'); ov.id = 'shopOv'; ov.style.cssText = 'position:fixed;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;background:rgba(5,12,24,.55)'; document.body.appendChild(ov); }
@@ -1195,7 +1206,7 @@ function hurt(n) {
   if (pHp <= 0 && bossOn) { bossOn = false; const b = showBoard(`<h2>😵 被污染擊倒</h2><p class="tip">去商店補彈或買新武器，再挑戰！</p><button class="go" data-testid="retry" id="retry">🔁 重試 Boss</button>`, true); b.querySelector('#retry').onclick = () => { inv.water.mag = 12; startBoss(); }; }
 }
 function winBoss() { bossOn = false; bossWon = true; worldRoot.remove(boss); boss = null; money += 200; score += 500; toast('🏆', 1500); setTimeout(endGame, 1200); }
-window.__BOSS = { get slimes() { return slimes.map((q) => ({ x: q.g.position.x, z: q.g.position.z, hp: q.hp })); }, get boss() { return boss ? { x: boss.position.x, z: boss.position.z, phase: bossPhase } : null; }, start: startBoss, give(n) { money += n; updWeap(); }, get s() { return { bossOn, bossHp, pHp, money, gun, jumpH, shots: window.__shots || 0, hits: window.__hits || 0, blocked: window.__blocked || 0, inv: JSON.parse(JSON.stringify(inv)) }; } };
+window.__BOSS = { get slimes() { return slimes.map((q) => ({ x: q.g.position.x, z: q.g.position.z, hp: q.hp })); }, get boss() { return boss ? { x: boss.position.x, z: boss.position.z, phase: bossPhase } : null; }, start: startBoss, give(n) { money += n; updWeap(); }, get s() { return { shopOpen, fireCd: +fireCd.toFixed(2), reloadT, bossOn, bossHp, pHp, money, gun, jumpH, shots: window.__shots || 0, hits: window.__hits || 0, blocked: window.__blocked || 0, inv: JSON.parse(JSON.stringify(inv)) }; } };
 updWeap();
 
 // ---- interaction ----

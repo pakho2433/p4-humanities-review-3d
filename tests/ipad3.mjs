@@ -20,7 +20,7 @@ for (const [name, vp] of [['ipad_land', { width: 1180, height: 820 }], ['ipad_po
   const p2 = await page.evaluate(() => window.__GAME.state.player);
   await page.screenshot({ path: `previews/v3_${name}_m1.png` });
   await page.evaluate(() => { window.__BOSS.give(400); window.__BOSS.start(); }); await page.waitForTimeout(1500);
-  await page.tap('[data-testid="shop"]'); await page.tap('[data-testid="buy-pistol"]'); await page.screenshot({ path: `previews/v3_${name}_shop.png` }); await page.tap('#shopClose');
+  await page.tap('[data-testid="shop"]'); await page.tap('[data-testid="buy-pistol"]'); await page.screenshot({ path: `previews/v3_${name}_shop.png` }); await page.tap('#shopClose'); console.log(name, 'pre-fire', JSON.stringify(await page.evaluate(() => window.__BOSS.s)));
   const a0 = await page.evaluate(() => window.__BOSS.s);
   for (let i = 0; i < 4; i++) { await page.tap('[data-testid="fire"]'); await page.waitForTimeout(450); }
   const a1 = await page.evaluate(() => window.__BOSS.s);
@@ -35,5 +35,5 @@ for (const [name, vp] of [['ipad_land', { width: 1180, height: 820 }], ['ipad_po
   out[name] = { errs, moved: +(Math.hypot(p1.x - p0.x, p1.z - p0.z)).toFixed(2), yawChange: +(p2.yaw - p1.yaw).toFixed(2), ammoAfterTapFire: [a0.inv[a0.gun].mag, a1.inv[a1.gun].mag], afterReload: a2.inv[a2.gun].mag, jumpH: a2.jumpH, swappedTo: a3.gun, overlap: { barAct: ov(bar, act), barJoy: ov(bar, joy) } };
   await ctx.close();
 }
-console.log(JSON.stringify(out, null, 1));
+console.log("RESULT " + JSON.stringify(out));
 await browser.close();
